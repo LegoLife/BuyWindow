@@ -38,7 +38,8 @@ else {
 
     $archive = Join-Path ([IO.Path]::GetTempPath()) "buywindow-$([guid]::NewGuid()).tar.gz"
     try {
-        tar.exe -czf $archive publish Dockerfile.prebuilt docker-compose.prod.yml
+        # Git's tar can come first on PATH, and it reads the C: in the archive path as a remote host.
+        & "$env:SystemRoot\System32\tar.exe" -czf $archive publish Dockerfile.prebuilt docker-compose.prod.yml
         Assert-Ok 'Packaging'
 
         Invoke-Remote "mkdir -p $RemotePath && rm -rf $RemotePath/publish" 'Preparing the server'

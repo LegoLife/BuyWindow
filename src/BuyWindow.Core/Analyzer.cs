@@ -17,7 +17,8 @@ public sealed record TickerAnalysis(
     PatternResult? Pattern,
     bool LowConfidence,
     DateOnly? HistoryStart,
-    DateOnly? HistoryEnd);
+    DateOnly? HistoryEnd,
+    IReadOnlyList<PriceBar> Bars);
 
 public static class Analyzer
 {
@@ -40,7 +41,8 @@ public static class Analyzer
             lowConfidence ? null : Pattern.Compute(bars),
             lowConfidence,
             first,
-            last);
+            last,
+            bars);
     }
 
     public static TickerStatus StatusFor(IReadOnlyList<DayScore> scores, DateOnly? lastBar, DateOnly? lastMarket, DateTime easternNow)

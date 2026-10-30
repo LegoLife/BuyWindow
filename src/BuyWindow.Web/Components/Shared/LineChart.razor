@@ -38,6 +38,10 @@
         <g class="slot">
             <line class="cross" x1="@N(x)" x2="@N(x)" y1="@Top" y2="@(Height - Bottom)" />
             <circle class="dot" cx="@N(x)" cy="@N(Y(point.Value))" r="4" />
+            @if (point.Marked)
+            {
+                <circle class="mark" cx="@N(x)" cy="@N(Y(point.Value))" r="5" />
+            }
             <rect class="hit" x="@N(x - _slot / 2)" y="@Top" width="@N(_slot)" height="@(Height - Top - Bottom)" data-tip="@point.Tip" />
         </g>
     }

@@ -71,7 +71,37 @@ else
 
             <h3>Score over the last @_scorePoints.Count trading days</h3>
             <LineChart Points="_scorePoints" Label="@($"{_ticker.Symbol} daily buy score")" Min="0" Max="100" Reference="BuyRule.Threshold" />
-            <p class="muted small">The flat line at @BuyRule.Threshold.ToString("0") is the buy trigger.</p>
+            <p class="muted small">The flat line at @BuyRule.Threshold.ToString("0") is the buy trigger. Dots mark the days the rule bought.</p>
+
+            <h3>Closing price over the same days</h3>
+            <LineChart Points="_pricePoints" Label="@($"{_ticker.Symbol} daily closing price")" />
+            <p class="muted small">Dots mark the same days. Each purchase was at that day's open, so it can differ from the close shown here.</p>
+
+            @if (_reviews.Count > 0)
+            {
+                <h3>Purchases in this period</h3>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                            <tr><th>Bought</th><th>Why</th><th class="num">Score the night before</th><th class="num">Price paid</th><th class="num">Month's low</th><th class="num">@BuyReviews.LaterTradingDays trading days later</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var review in _reviews)
+                            {
+                                <tr>
+                                    <td>@Display.Date(review.BuyDate)</td>
+                                    <td>@(review.Reason == BuyReason.Signal ? "Signal" : "Deadline")</td>
+                                    <td class="num">@(review.ScoreBefore?.ToString("0") ?? "-")</td>
+                                    <td class="num">@review.PricePaid.ToString("0.00")</td>
+                                    <td class="num">@review.MonthLow.ToString("0.00")@(review.MonthFinished ? "" : " so far")</td>
+                                    <td class="num">@(review.PriceLater is { } later ? $"{later:0.00} ({Display.Percent(review.ChangeLaterPercent!.Value)})" : "Not yet")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="muted small">Prices are adjusted for later splits and dividends, so they can differ from what was actually quoted that day.</p>
+            }
         }
     </section>
 
@@ -174,7 +204,9 @@ else
 
     private WatchedTicker? _ticker;
     private IReadOnlyList<ChartPoint> _scorePoints = [];
+    private IReadOnlyList<ChartPoint> _pricePoints = [];
     private IReadOnlyList<ChartPoint> _patternPoints = [];
+    private IReadOnlyList<BuyReview> _reviews = [];
     private bool _loading = true;
 
     protected override async Task OnParametersSetAsync()
@@ -183,8 +215,22 @@ else
         _loading = false;
         if (_ticker is null) return;
 
-        _scorePoints = _ticker.Analysis.Scores.TakeLast(ScoreDays)
-            .Select(s => new ChartPoint(s.Date.ToString("MMM d"), s.Total, $"{Display.Date(s.Date)}: score {s.Total:0}"))
+        var recent = _ticker.Analysis.Scores.TakeLast(ScoreDays).ToList();
+        var bars = _ticker.Analysis.Bars.ToDictionary(b => b.Date);
+        var reviews = recent.Count > 0 ? BuyReviews.Since(_ticker.Analysis, recent[0].Date) : [];
+        var bought = reviews.ToDictionary(r => r.BuyDate);
+        _reviews = reviews.Reverse().ToList();
+
+        string Tip(DayScore s) =>
+            $"{Display.Date(s.Date)}: score {s.Total:0}, closed at {bars[s.Date].Close:0.00}"
+            + (bought.TryGetValue(s.Date, out var review) ? $", bought at {review.PricePaid:0.00}" : "");
+
+        _scorePoints = recent
+            .Select(s => new ChartPoint(s.Date.ToString("MMM d"), s.Total, Tip(s), Marked: bought.ContainsKey(s.Date)))
+            .ToList();
+
+        _pricePoints = recent
+            .Select(s => new ChartPoint(s.Date.ToString("MMM d"), bars[s.Date].Close, Tip(s), Marked: bought.ContainsKey(s.Date)))
             .ToList();
 
         _patternPoints = (_ticker.Analysis.Pattern?.Days ?? [])

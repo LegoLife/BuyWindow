@@ -15,6 +15,8 @@ public sealed class AlertSender(
     TimeProvider clock,
     ILogger<AlertSender> logger)
 {
+    private const string FidelityLogin = "https://digital.fidelity.com/prgw/digital/signin/retail";
+
     public string? LastError { get; private set; }
 
     public async Task SendDueAsync(CancellationToken ct = default)
@@ -61,7 +63,7 @@ public sealed class AlertSender(
     {
         try
         {
-            await email.SendAsync("BuyWindow: test email", $"Email alerts are working.\n\n{Link()}");
+            await email.SendAsync("BuyWindow: test email", $"Email alerts are working.\n\n{Link()}\nFidelity login: {FidelityLogin}");
             LastError = null;
             return $"Test email sent to {email.Recipient}.";
         }

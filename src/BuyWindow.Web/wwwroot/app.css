@@ -115,6 +115,7 @@ table.data tbody tr + tr td { border-top: 1px solid var(--grid); }
 table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ticker-link { font-weight: 650; }
 
+.email-status { margin: 16px 0 0; }
 .status, .verdict { font-weight: 600; white-space: nowrap; }
 .status-buy, .verdict-edge .verdict-label { color: var(--good-ink); }
 .status-warn { color: var(--warning-ink); }

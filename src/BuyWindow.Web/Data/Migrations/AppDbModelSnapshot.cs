@@ -17,6 +17,22 @@ namespace BuyWindow.Web.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
+            modelBuilder.Entity("BuyWindow.Web.Data.SentAlert", b =>
+                {
+                    b.Property<string>("Symbol")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Key")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("SentUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Symbol", "Key");
+
+                    b.ToTable("SentAlerts");
+                });
+
             modelBuilder.Entity("BuyWindow.Web.Data.StoredBar", b =>
                 {
                     b.Property<string>("Symbol")

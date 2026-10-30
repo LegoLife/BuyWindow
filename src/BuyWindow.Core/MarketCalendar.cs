@@ -56,6 +56,10 @@ public static class MarketCalendar
         return PreviousTradingDay(today).ToDateTime(CorrectionsRefresh);
     }
 
+    /// <summary>Whether the latest scheduled refresh was the final one of its evening.</summary>
+    public static bool CorrectionsRefreshDone(DateTime easternNow) =>
+        TimeOnly.FromDateTime(LatestRefreshPoint(easternNow)) == CorrectionsRefresh;
+
     private static bool IsHoliday(DateOnly date)
     {
         var year = date.Year;

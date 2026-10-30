@@ -15,6 +15,21 @@ Prices and your watchlist are kept in the `buywindow-data` Docker volume.
 
 To run without Docker, set the key once with `dotnet user-secrets set Tiingo:ApiKey <key> --project src/BuyWindow.Web`, then run `dotnet run --project src/BuyWindow.Web`. Tests run with `dotnet test`.
 
+## Deploy to the home server
+
+Run `.\deploy.ps1`. It publishes for ARM64 on this computer, uploads the result and your `.env` to `~/buywindow` on the Pi, and runs it in Docker at <http://192.168.1.137:8085>. It's only reachable on the home network. `.\deploy.ps1 -Rollback` returns to the previous image.
+
+## Email alerts
+
+Add `SMTP_USER` and `SMTP_PASSWORD` to `.env`, then deploy again. For Gmail, the password must be an [app password](https://myaccount.google.com/apppasswords). The home page has a button to send a test email.
+
+You get one email per ticker per month when:
+
+- **A buy is ready:** sent after the 8:05 PM Eastern refresh, so a price correction can't undo it.
+- **A deadline buy is blocked:** the buy is due but the data is out of date.
+
+Each email includes the ticker's verdict. Tickers that trigger at the same check share one email. If sending fails, the app tries again every 15 minutes and shows the problem on the home page.
+
 ## How it decides
 
 **Score.** Five indicators are each worth up to 20 points, for a 0-100 score. The rules are the same for every ticker, because tuning them per ticker would fit past noise.

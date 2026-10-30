@@ -22,6 +22,8 @@ builder.Services.AddHttpClient<IMarketData, TiingoClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(60);
 });
 builder.Services.AddSingleton<MarketStore>();
+builder.Services.AddSingleton<EmailSender>();
+builder.Services.AddSingleton<AlertSender>();
 builder.Services.AddHostedService<RefreshWorker>();
 
 var app = builder.Build();

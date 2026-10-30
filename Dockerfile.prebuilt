@@ -1,0 +1,12 @@
+# Used by deploy.ps1: the app is already published for the server's architecture, so this only copies it in.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY publish/ .
+RUN mkdir -p /data/keys && chown -R app:app /data
+USER app
+ENV ASPNETCORE_URLS=http://+:8080 \
+    ConnectionStrings__Default="Data Source=/data/buywindow.db" \
+    DataProtection__KeysPath=/data/keys
+EXPOSE 8080
+VOLUME /data
+ENTRYPOINT ["dotnet", "BuyWindow.Web.dll"]

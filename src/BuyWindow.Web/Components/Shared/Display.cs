@@ -12,6 +12,9 @@ public static class Display
     public static string Short(DateOnly? date) =>
         date?.ToString("ddd, MMM d", CultureInfo.InvariantCulture) ?? "-";
 
+    public static string Checked(DateTime? eastern) =>
+        eastern?.ToString("MMM d, yyyy 'at' h:mm tt 'ET'", CultureInfo.InvariantCulture) ?? "not yet";
+
     public static string Percent(double value) =>
         double.IsFinite(value) ? $"{value:+0.0;-0.0;0.0}%" : "n/a";
 

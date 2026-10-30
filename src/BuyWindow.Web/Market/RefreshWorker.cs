@@ -18,6 +18,7 @@ public sealed class RefreshWorker(MarketStore store, AlertSender alerts, ILogger
                     logger.LogWarning("Price refresh failed: {Error}", error);
 
                 await alerts.SendDueAsync(stoppingToken);
+                store.MarkChecked();
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

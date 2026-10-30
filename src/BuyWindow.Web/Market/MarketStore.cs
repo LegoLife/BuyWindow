@@ -22,9 +22,18 @@ public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provid
 
     public string? LastError { get; private set; }
 
+    /// <summary>When the background check last finished, in Eastern time. Empty until the first one after startup.</summary>
+    public DateTime? LastCheckedEastern { get; private set; }
+
     public bool IsConfigured => provider.IsConfigured;
 
     public DateTime EasternNow => TimeZoneInfo.ConvertTimeFromUtc(clock.GetUtcNow().UtcDateTime, Eastern);
+
+    public void MarkChecked()
+    {
+        LastCheckedEastern = EasternNow;
+        Changed?.Invoke();
+    }
 
     public Task<IReadOnlyList<TickerMatch>> SearchAsync(string query, CancellationToken ct = default) =>
         provider.SearchAsync(query, ct);

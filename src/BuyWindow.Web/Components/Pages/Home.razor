@@ -1,0 +1,191 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject MarketStore Store
+
+<PageTitle>BuyWindow</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <h1>Watchlist</h1>
+        @if (_dataThrough is not null)
+        {
+            <p class="muted">Prices through @Display.Date(_dataThrough)</p>
+        }
+    </div>
+    @if (Store.IsConfigured && _tickers.Count > 0)
+    {
+        <button class="button" disabled="@_refreshing" @onclick="RefreshAsync">@(_refreshing ? "Refreshing…" : "Refresh prices")</button>
+    }
+</div>
+
+@if (!Store.IsConfigured)
+{
+    <p class="notice notice-warn" role="alert"><strong>! No Tiingo API key.</strong> Add your free key as <code>TIINGO_API_KEY</code> in the <code>.env</code> file, then restart the app.</p>
+}
+@if (Store.LastError is { } refreshError)
+{
+    <p class="notice notice-warn" role="alert"><strong>! Price refresh failed.</strong> @refreshError</p>
+}
+
+<form class="search" @onsubmit="SearchAsync">
+    <label for="ticker-search">Add a US stock or ETF</label>
+    <div class="search-row">
+        <input id="ticker-search" @bind="_query" @bind:event="oninput" placeholder="Symbol or company name, like BE or Bloom Energy" autocomplete="off" disabled="@(!Store.IsConfigured)" />
+        <button class="button button-primary" type="submit" disabled="@(_searching || !Store.IsConfigured)">@(_searching ? "Searching…" : "Search")</button>
+    </div>
+</form>
+
+@if (_formError is not null)
+{
+    <p class="notice notice-warn" role="alert">@_formError</p>
+}
+
+@if (_matches is not null)
+{
+    <section class="matches" aria-label="Search results">
+        @if (_matches.Count == 0)
+        {
+            <p class="muted">No active US stocks or ETFs matched that search.</p>
+        }
+        <ul>
+            @foreach (var match in _matches)
+            {
+                <li>
+                    <span><strong>@match.Symbol</strong> @match.Name <span class="muted">· @match.AssetType</span></span>
+                    <button class="button" disabled="@(_adding is not null)" @onclick="() => AddAsync(match)">
+                        @(_adding == match.Symbol ? "Downloading prices…" : "Add this one")
+                    </button>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@if (_loading)
+{
+    <p class="muted">Loading…</p>
+}
+else if (_tickers.Count == 0)
+{
+    <p class="empty">Your watchlist is empty. Search above to add your first ticker.</p>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="data watchlist">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Status</th>
+                    <th class="num">Score</th>
+                    <th class="num">Trading days left</th>
+                    <th>Does timing help?</th>
+                    <th><span class="visually-hidden">Remove</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var ticker in _tickers)
+                {
+                    var analysis = ticker.Analysis;
+                    <tr>
+                        <td>
+                            <a class="ticker-link" href="ticker/@ticker.Symbol">@ticker.Symbol</a>
+                            <div class="muted small">@ticker.Name</div>
+                        </td>
+                        <td>
+                            <span class="status @Display.StatusClass(analysis.Status.Kind)"><span aria-hidden="true">@Display.StatusGlyph(analysis.Status.Kind)</span> @Display.StatusLabel(analysis.Status)</span>
+                            <div class="muted small">@Display.StatusDetail(analysis.Status)</div>
+                        </td>
+                        <td class="num" data-label="Score">@(analysis.Scores.Count > 0 ? analysis.Scores[^1].Total.ToString("0") : "-")</td>
+                        <td class="num" data-label="Trading days left">@analysis.Status.TradingDaysLeft</td>
+                        <td>
+                            <span class="verdict @Display.VerdictClass(analysis.Backtest.Verdict)"><span aria-hidden="true">@Display.VerdictGlyph(analysis.Backtest.Verdict)</span> @Display.VerdictLabel(analysis.Backtest.Verdict)</span>
+                            <div class="muted small">
+                                @analysis.Backtest.Months.Count months@(analysis.LowConfidence ? " · low confidence" : "")
+                            </div>
+                        </td>
+                        <td class="num">
+                            <button class="link-button" @onclick="() => RemoveAsync(ticker.Symbol)" aria-label="Remove @ticker.Symbol">Remove</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<WatchedTicker> _tickers = [];
+    private IReadOnlyList<TickerMatch>? _matches;
+    private DateOnly? _dataThrough;
+    private string _query = "";
+    private string? _formError;
+    private string? _adding;
+    private bool _loading = true, _searching, _refreshing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Store.Changed += OnStoreChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _tickers = await Store.LoadWatchlistAsync();
+        _dataThrough = _tickers.Max(t => t.Analysis.HistoryEnd);
+        _loading = false;
+    }
+
+    private void OnStoreChanged() => _ = InvokeAsync(async () =>
+    {
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) return;
+
+        _searching = true;
+        _formError = null;
+        try
+        {
+            _matches = (await Store.SearchAsync(_query.Trim())).Take(8).ToList();
+        }
+        catch (MarketDataException ex)
+        {
+            _matches = null;
+            _formError = ex.Message;
+        }
+        _searching = false;
+    }
+
+    private async Task AddAsync(TickerMatch match)
+    {
+        _adding = match.Symbol;
+        _formError = null;
+        try
+        {
+            await Store.AddAsync(match);
+            _matches = null;
+            _query = "";
+        }
+        catch (MarketDataException ex)
+        {
+            _formError = ex.Message;
+        }
+        _adding = null;
+    }
+
+    private Task RemoveAsync(string symbol) => Store.RemoveAsync(symbol);
+
+    private async Task RefreshAsync()
+    {
+        _refreshing = true;
+        await Store.RefreshDueAsync(force: true);
+        _refreshing = false;
+    }
+
+    public void Dispose() => Store.Changed -= OnStoreChanged;
+}

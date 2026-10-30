@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BuyWindow.Core/BuyWindow.Core.csproj" />
+    <Project Path="src/BuyWindow.Web/BuyWindow.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BuyWindow.Core.Tests/BuyWindow.Core.Tests.csproj" />
+  </Folder>
+</Solution>

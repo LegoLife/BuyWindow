@@ -1,0 +1,15 @@
+services:
+  buywindow:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Only reachable from this computer: the app has no login, and Tiingo's free license is personal use.
+      - "127.0.0.1:${BUYWINDOW_PORT:-8085}:8080"
+    environment:
+      Tiingo__ApiKey: ${TIINGO_API_KEY:-}
+      Tiingo__BaseUrl: ${TIINGO_BASE_URL:-https://api.tiingo.com/}
+    volumes:
+      - buywindow-data:/data
+
+volumes:
+  buywindow-data:

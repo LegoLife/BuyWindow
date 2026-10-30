@@ -1,0 +1,208 @@
+@page "/ticker/{Symbol}"
+@rendermode InteractiveServer
+@inject MarketStore Store
+
+<PageTitle>@(Symbol.ToUpperInvariant()) · BuyWindow</PageTitle>
+
+@if (_loading)
+{
+    <p class="muted">Loading…</p>
+}
+else if (_ticker is null)
+{
+    <h1>@Symbol.ToUpperInvariant()</h1>
+    <p>That ticker isn't on your watchlist. <a href="">Back to the watchlist</a></p>
+}
+else
+{
+    var analysis = _ticker.Analysis;
+    var backtest = analysis.Backtest;
+    var latest = analysis.Scores.Count > 0 ? analysis.Scores[^1] : null;
+
+    <p class="crumb"><a href="">← Watchlist</a></p>
+    <h1>@_ticker.Symbol <span class="muted heading-name">@_ticker.Name</span></h1>
+    <p class="muted">
+        Using @Display.Date(analysis.HistoryStart) to @Display.Date(analysis.HistoryEnd)
+        @if (analysis.LowConfidence)
+        {
+            <span class="chip">Low confidence: under 5 years of data</span>
+        }
+    </p>
+
+    <section class="verdict-panel @Display.VerdictClass(backtest.Verdict)" aria-label="Does timing help?">
+        <h2><span aria-hidden="true">@Display.VerdictGlyph(backtest.Verdict)</span> @Display.VerdictLabel(backtest.Verdict)</h2>
+        <p>@Display.VerdictSentence(backtest)</p>
+        @if (backtest.Months.Count > 1)
+        {
+            <p class="muted small">Average saving against the first trading day: @Display.Percent(backtest.Edge.Mean) (95% range @Display.Percent(backtest.Edge.Low) to @Display.Percent(backtest.Edge.High)). Positive means the signal paid less.</p>
+        }
+    </section>
+
+    <section>
+        <h2>This month</h2>
+        <p>
+            <span class="status @Display.StatusClass(analysis.Status.Kind)"><span aria-hidden="true">@Display.StatusGlyph(analysis.Status.Kind)</span> @Display.StatusLabel(analysis.Status)</span>
+            <span class="muted"> · @Display.StatusDetail(analysis.Status) · @analysis.Status.TradingDaysLeft trading days left</span>
+        </p>
+
+        @if (latest is not null)
+        {
+            <div class="score-summary">
+                <div class="stat">
+                    <div class="stat-value">@latest.Total.ToString("0")</div>
+                    <div class="muted small">Score on @Display.Short(latest.Date), out of 100. A buy triggers at @BuyRule.Threshold.ToString("0").</div>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr><th>Indicator</th><th>Reading</th><th>What it asks</th><th>Points</th></tr>
+                    </thead>
+                    <tbody>
+                        <ScoreRow Name="RSI (14-day)" Reading="@latest.Rsi.ToString("0.0")" Question="Has it been sold off recently?" Points="latest.RsiPoints" />
+                        <ScoreRow Name="Bollinger Bands" Reading="@($"{latest.PercentB * 100:0}% of band")" Question="Is it low compared with its recent range?" Points="latest.BollingerPoints" />
+                        <ScoreRow Name="MACD" Reading="@latest.MacdHistogram.ToString("+0.00;-0.00;0.00")" Question="Is the downward momentum fading?" Points="latest.MacdPoints" />
+                        <ScoreRow Name="Volume" Reading="@($"{latest.VolumeRatio:0.0}x average")" Question="Is heavy selling behind the move?" Points="latest.VolumePoints" />
+                        <ScoreRow Name="Market trend" Reading="@(latest.MarketAboveAverage ? "SPY above 200-day" : "SPY below 200-day")" Question="Is the overall market healthy?" Points="latest.MarketPoints" />
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Score over the last @_scorePoints.Count trading days</h3>
+            <LineChart Points="_scorePoints" Label="@($"{_ticker.Symbol} daily buy score")" Min="0" Max="100" Reference="BuyRule.Threshold" />
+            <p class="muted small">The flat line at @BuyRule.Threshold.ToString("0") is the buy trigger.</p>
+        }
+    </section>
+
+    <section>
+        <h2>Backtest</h2>
+        @if (backtest.Months.Count == 0)
+        {
+            <p class="muted">No finished months to test yet.</p>
+        }
+        else
+        {
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">@backtest.SignalMonths of @backtest.Months.Count</div>
+                    <div class="muted small">Months the signal triggered. The rest bought at the deadline.</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">@Display.Percent(backtest.MeanSignalAboveLowPercent)</div>
+                    <div class="muted small">Signal's purchase above the month's lowest price</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">@Display.Percent(backtest.MeanBaselineAboveLowPercent)</div>
+                    <div class="muted small">First trading day's price above the month's lowest</div>
+                </div>
+            </div>
+
+            <details>
+                <summary>Month-by-month results</summary>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                            <tr><th>Bought</th><th>Why</th><th class="num">Price paid</th><th class="num">First day</th><th class="num">Month's low</th><th class="num">Saving vs first day</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var month in backtest.Months.Reverse())
+                            {
+                                <tr>
+                                    <td>@Display.Date(month.BuyDate)</td>
+                                    <td>@(month.Reason == BuyReason.Signal ? "Signal" : "Deadline")</td>
+                                    <td class="num">@month.BuyPrice.ToString("0.00")</td>
+                                    <td class="num">@month.FirstDayOpen.ToString("0.00")</td>
+                                    <td class="num">@month.MonthLow.ToString("0.00")</td>
+                                    <td class="num">@Display.Percent(month.EdgePercent)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        }
+    </section>
+
+    <section>
+        <h2>Day-of-month pattern</h2>
+        @if (analysis.Pattern is not { } pattern)
+        {
+            <p class="muted">Hidden: there's under 5 years of data, so any pattern would mostly be noise.</p>
+        }
+        else
+        {
+            @if (pattern.BestWindow is { } window)
+            {
+                <p><strong>Cheapest window: trading days @window.FirstTradingDay-@window.LastTradingDay</strong>, about the @Ordinal(window.ApproxFirstDayOfMonth) to the @Ordinal(window.ApproxLastDayOfMonth), typically @Display.Percent(window.Range.Mean) from the month's average.</p>
+            }
+            else
+            {
+                <p><strong>No reliable pattern.</strong> No part of the month stands out from the noise across @pattern.Months months.</p>
+            }
+            <LineChart Points="_patternPoints" Label="@($"{_ticker.Symbol} typical price by trading day of the month")" Suffix="%" Reference="0" />
+            <p class="muted small">Blue line: typical distance from the month's average price, which is the flat line at 0%. Shaded: 95% range. Day labels are approximate dates.</p>
+
+            <details>
+                <summary>Pattern as a table</summary>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead><tr><th class="num">Trading day</th><th class="num">About the</th><th class="num">Typical</th><th class="num">95% range</th><th class="num">Months</th></tr></thead>
+                        <tbody>
+                            @foreach (var day in pattern.Days)
+                            {
+                                <tr>
+                                    <td class="num">@day.TradingDay</td>
+                                    <td class="num">@Ordinal(day.ApproxDayOfMonth)</td>
+                                    <td class="num">@Display.Percent(day.Range.Mean)</td>
+                                    <td class="num">@Display.Percent(day.Range.Low) to @Display.Percent(day.Range.High)</td>
+                                    <td class="num">@day.Range.Count</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        }
+    </section>
+}
+
+@code {
+    private const int ScoreDays = 120;
+
+    [Parameter] public required string Symbol { get; set; }
+
+    private WatchedTicker? _ticker;
+    private IReadOnlyList<ChartPoint> _scorePoints = [];
+    private IReadOnlyList<ChartPoint> _patternPoints = [];
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _ticker = await Store.LoadAsync(Symbol.ToUpperInvariant());
+        _loading = false;
+        if (_ticker is null) return;
+
+        _scorePoints = _ticker.Analysis.Scores.TakeLast(ScoreDays)
+            .Select(s => new ChartPoint(s.Date.ToString("MMM d"), s.Total, $"{Display.Date(s.Date)}: score {s.Total:0}"))
+            .ToList();
+
+        _patternPoints = (_ticker.Analysis.Pattern?.Days ?? [])
+            .Select(d => new ChartPoint(
+                Ordinal(d.ApproxDayOfMonth),
+                d.Range.Mean,
+                $"Trading day {d.TradingDay}, about the {Ordinal(d.ApproxDayOfMonth)}: {Display.Percent(d.Range.Mean)}",
+                double.IsFinite(d.Range.Low) ? d.Range.Low : null,
+                double.IsFinite(d.Range.High) ? d.Range.High : null))
+            .ToList();
+    }
+
+    private static string Ordinal(int day) => (day % 100, day % 10) switch
+    {
+        (11 or 12 or 13, _) => $"{day}th",
+        (_, 1) => $"{day}st",
+        (_, 2) => $"{day}nd",
+        (_, 3) => $"{day}rd",
+        _ => $"{day}th",
+    };
+}

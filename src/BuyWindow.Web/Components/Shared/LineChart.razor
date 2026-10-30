@@ -1,0 +1,105 @@
+@* One series on one axis, with an optional confidence band and reference line. *@
+
+<svg class="chart" viewBox="0 0 @Width @Height" role="img" aria-label="@Label">
+    @foreach (var tick in _ticks)
+    {
+        <g>
+            <line class="grid" x1="@Left" x2="@(Width - Right)" y1="@N(Y(tick))" y2="@N(Y(tick))" />
+            <text class="axis" x="@(Left - 8)" y="@N(Y(tick) + 4)" text-anchor="end">@tick.ToString("0.##")@Suffix</text>
+        </g>
+    }
+
+    @if (_band is not null)
+    {
+        <path class="band" d="@_band" />
+    }
+
+    @if (Reference is { } reference)
+    {
+        <g>
+            <line class="reference" x1="@Left" x2="@(Width - Right)" y1="@N(Y(reference))" y2="@N(Y(reference))" />
+            @if (!_ticks.Contains(reference))
+            {
+                <g><text class="axis" x="@(Left - 8)" y="@N(Y(reference) + 4)" text-anchor="end">@reference.ToString("0.##")@Suffix</text></g>
+            }
+        </g>
+    }
+
+    <path class="series" d="@_line" />
+
+    @for (var i = 0; i < Points.Count; i++)
+    {
+        var point = Points[i];
+        var x = X(i);
+        if (i % _labelEvery == 0)
+        {
+            <g><text class="axis" x="@N(x)" y="@(Height - 8)" text-anchor="middle">@point.Label</text></g>
+        }
+        <g class="slot">
+            <line class="cross" x1="@N(x)" x2="@N(x)" y1="@Top" y2="@(Height - Bottom)" />
+            <circle class="dot" cx="@N(x)" cy="@N(Y(point.Value))" r="4" />
+            <rect class="hit" x="@N(x - _slot / 2)" y="@Top" width="@N(_slot)" height="@(Height - Top - Bottom)" data-tip="@point.Tip" />
+        </g>
+    }
+</svg>
+
+@code {
+    private const int Width = 720, Height = 260, Left = 48, Right = 16, Top = 14, Bottom = 30;
+
+    [Parameter, EditorRequired] public required IReadOnlyList<ChartPoint> Points { get; set; }
+    [Parameter, EditorRequired] public required string Label { get; set; }
+    [Parameter] public string Suffix { get; set; } = "";
+    [Parameter] public double? Reference { get; set; }
+    [Parameter] public double? Min { get; set; }
+    [Parameter] public double? Max { get; set; }
+
+    private List<double> _ticks = [];
+    private double _min, _max, _slot;
+    private int _labelEvery = 1;
+    private string _line = "";
+    private string? _band;
+
+    protected override void OnParametersSet()
+    {
+        var values = Points.Select(p => p.Value)
+            .Concat(Points.Where(p => p.Low.HasValue).SelectMany(p => new[] { p.Low!.Value, p.High!.Value }))
+            .Concat(Reference.HasValue ? [Reference.Value] : [])
+            .ToList();
+
+        var low = Min ?? (values.Count > 0 ? values.Min() : 0);
+        var high = Max ?? (values.Count > 0 ? values.Max() : 1);
+        if (high <= low) high = low + 1;
+
+        var step = NiceStep((high - low) / 4);
+        _min = Min ?? Math.Floor(low / step) * step;
+        _max = Max ?? Math.Ceiling(high / step) * step;
+        _ticks = [];
+        for (var tick = _min; tick <= _max + step / 1000; tick += step)
+            _ticks.Add(Math.Round(tick, 6));
+
+        _slot = (Width - Left - Right) / (double)Math.Max(Points.Count, 1);
+        _labelEvery = Math.Max(1, (int)Math.Ceiling(Points.Count / 7.0));
+        _line = "M" + string.Join("L", Points.Select((p, i) => $"{N(X(i))} {N(Y(p.Value))}"));
+
+        var banded = Points.Select((p, i) => (p, i)).Where(t => t.p.Low.HasValue).ToList();
+        _band = banded.Count < 2 ? null
+            : "M" + string.Join("L", banded.Select(t => $"{N(X(t.i))} {N(Y(t.p.High!.Value))}"))
+              + "L" + string.Join("L", banded.AsEnumerable().Reverse().Select(t => $"{N(X(t.i))} {N(Y(t.p.Low!.Value))}"))
+              + "Z";
+    }
+
+    private double X(int index) => Left + _slot * (index + 0.5);
+
+    private double Y(double value) =>
+        Top + (Height - Top - Bottom) * (1 - (value - _min) / (_max - _min));
+
+    private static string N(double value) =>
+        value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static double NiceStep(double rough)
+    {
+        var magnitude = Math.Pow(10, Math.Floor(Math.Log10(rough)));
+        var normalized = rough / magnitude;
+        return (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
+    }
+}

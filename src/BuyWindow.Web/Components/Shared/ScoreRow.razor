@@ -1,0 +1,16 @@
+<tr>
+    <td>@Name</td>
+    <td>@Reading</td>
+    <td class="muted">@Question</td>
+    <td>
+        <span class="meter" aria-hidden="true"><span class="meter-fill" style="width: @((Points / Scoring.MaxPoints * 100).ToString("0"))%"></span></span>
+        <span class="meter-value">@Points.ToString("0") of @Scoring.MaxPoints.ToString("0")</span>
+    </td>
+</tr>
+
+@code {
+    [Parameter, EditorRequired] public required string Name { get; set; }
+    [Parameter, EditorRequired] public required string Reading { get; set; }
+    [Parameter, EditorRequired] public required string Question { get; set; }
+    [Parameter, EditorRequired] public double Points { get; set; }
+}

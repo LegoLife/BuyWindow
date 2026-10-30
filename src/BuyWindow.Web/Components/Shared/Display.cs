@@ -80,8 +80,8 @@ public static class Display
         return result.Verdict switch
         {
             Verdict.LikelyEdge => $"Over {n} months, following the signal paid {size}% less on average than buying on the first trading day.",
-            Verdict.LikelyWorse => $"Over {n} months, following the signal paid {size}% more on average than buying on the first trading day. Buying on your usual day has been better.",
-            _ => $"Over {n} months, the signal's difference from buying on the first trading day is within the noise. There's no evidence it helps, so your usual day is fine.",
+            Verdict.LikelyWorse => $"Over {n} months, following the signal paid {size}% more on average than buying on the first trading day, so buying on that day has been better.",
+            _ => $"Over {n} months, the signal's difference from buying on the first trading day is within the noise, so there's no evidence that waiting for the signal helps.",
         };
     }
 }

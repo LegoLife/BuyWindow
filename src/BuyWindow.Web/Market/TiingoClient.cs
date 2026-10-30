@@ -21,6 +21,7 @@ public sealed class TiingoClient(HttpClient http, IConfiguration config) : IMark
         return results
             .Where(r => r.IsActive && SupportedAssetTypes.Contains(r.AssetType, StringComparer.OrdinalIgnoreCase))
             .Select(r => new TickerMatch(r.Ticker.ToUpperInvariant(), r.Name ?? r.Ticker, r.AssetType!))
+            .DistinctBy(m => m.Symbol) // Tiingo can list one symbol more than once
             .ToList();
     }
 

@@ -69,13 +69,9 @@ else
                 </table>
             </div>
 
-            <h3>Score over the last @_scorePoints.Count trading days</h3>
-            <LineChart Points="_scorePoints" Label="@($"{_ticker.Symbol} daily buy score")" Min="0" Max="100" Reference="BuyRule.Threshold" />
-            <p class="muted small">The flat line at @BuyRule.Threshold.ToString("0") is the buy trigger. Dots mark the days the rule bought.</p>
-
-            <h3>Closing price over the same days</h3>
-            <LineChart Points="_pricePoints" Label="@($"{_ticker.Symbol} daily closing price")" />
-            <p class="muted small">Dots mark the same days. Each purchase was at that day's open, so it can differ from the close shown here.</p>
+            <h3>Score and price over the last @_scorePoints.Count trading days</h3>
+            <LineChart Points="_scorePoints" Label="@($"{_ticker.Symbol} daily buy score and closing price")" Min="0" Max="100" Reference="BuyRule.Threshold" Name="Score" SecondName="Price" />
+            <p class="muted small">Price is drawn on the same 0 to 100 scale: 0 is its lowest close in this period (@_priceLow.ToString("0.00")) and 100 is its highest (@_priceHigh.ToString("0.00")). Hover for the actual price. The flat line at @BuyRule.Threshold.ToString("0") is the buy trigger and applies only to the score. Dots mark the days the rule bought, at that day's open, which can differ from the close shown here.</p>
 
             @if (_reviews.Count > 0)
             {
@@ -204,9 +200,9 @@ else
 
     private WatchedTicker? _ticker;
     private IReadOnlyList<ChartPoint> _scorePoints = [];
-    private IReadOnlyList<ChartPoint> _pricePoints = [];
     private IReadOnlyList<ChartPoint> _patternPoints = [];
     private IReadOnlyList<BuyReview> _reviews = [];
+    private double _priceLow, _priceHigh;
     private bool _loading = true;
 
     protected override async Task OnParametersSetAsync()
@@ -225,12 +221,17 @@ else
             $"{Display.Date(s.Date)}: score {s.Total:0}, closed at {bars[s.Date].Close:0.00}"
             + (bought.TryGetValue(s.Date, out var review) ? $", bought at {review.PricePaid:0.00}" : "");
 
-        _scorePoints = recent
-            .Select(s => new ChartPoint(s.Date.ToString("MMM d"), s.Total, Tip(s), Marked: bought.ContainsKey(s.Date)))
-            .ToList();
+        _priceLow = recent.Select(s => bars[s.Date].Close).DefaultIfEmpty().Min();
+        _priceHigh = recent.Select(s => bars[s.Date].Close).DefaultIfEmpty().Max();
+        var priceRange = _priceHigh - _priceLow;
 
-        _pricePoints = recent
-            .Select(s => new ChartPoint(s.Date.ToString("MMM d"), bars[s.Date].Close, Tip(s), Marked: bought.ContainsKey(s.Date)))
+        _scorePoints = recent
+            .Select(s => new ChartPoint(
+                s.Date.ToString("MMM d"),
+                s.Total,
+                Tip(s),
+                Marked: bought.ContainsKey(s.Date),
+                Second: priceRange > 0 ? (bars[s.Date].Close - _priceLow) / priceRange * 100 : 50))
             .ToList();
 
         _patternPoints = (_ticker.Analysis.Pattern?.Days ?? [])

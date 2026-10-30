@@ -1,10 +1,17 @@
-@* One series on one axis, with an optional confidence band and reference line. *@
+@* One or two series on one axis, with an optional confidence band and reference line. *@
 
+@if (SecondName is not null)
+{
+    <div class="chart-legend">
+        <span><i class="swatch" aria-hidden="true"></i>@Name</span>
+        <span><i class="swatch swatch-2" aria-hidden="true"></i>@SecondName</span>
+    </div>
+}
 <svg class="chart" viewBox="0 0 @Width @Height" role="img" aria-label="@Label">
     @foreach (var tick in _ticks)
     {
         <g>
-            <line class="grid" x1="@Left" x2="@(Width - Right)" y1="@N(Y(tick))" y2="@N(Y(tick))" />
+            <line class="grid" x1="@Left" x2="@(Width - _right)" y1="@N(Y(tick))" y2="@N(Y(tick))" />
             <text class="axis" x="@(Left - 8)" y="@N(Y(tick) + 4)" text-anchor="end">@tick.ToString("0.##")@Suffix</text>
         </g>
     }
@@ -17,7 +24,7 @@
     @if (Reference is { } reference)
     {
         <g>
-            <line class="reference" x1="@Left" x2="@(Width - Right)" y1="@N(Y(reference))" y2="@N(Y(reference))" />
+            <line class="reference" x1="@Left" x2="@(Width - _right)" y1="@N(Y(reference))" y2="@N(Y(reference))" />
             @if (!_ticks.Contains(reference))
             {
                 <g><text class="axis" x="@(Left - 8)" y="@N(Y(reference) + 4)" text-anchor="end">@reference.ToString("0.##")@Suffix</text></g>
@@ -26,6 +33,14 @@
     }
 
     <path class="series" d="@_line" />
+    @if (_secondLine is not null)
+    {
+        <path class="series series-2" d="@_secondLine" />
+        <g>
+            <text class="end-label" x="@N(X(Points.Count - 1) + 8)" y="@N(_labelY)">@Name</text>
+            <text class="end-label" x="@N(X(Points.Count - 1) + 8)" y="@N(_secondLabelY)">@SecondName</text>
+        </g>
+    }
 
     @for (var i = 0; i < Points.Count; i++)
     {
@@ -42,13 +57,22 @@
             {
                 <circle class="mark" cx="@N(x)" cy="@N(Y(point.Value))" r="5" />
             }
+            @if (point.Second is { } second)
+            {
+                <circle class="dot dot-2" cx="@N(x)" cy="@N(Y(second))" r="4" />
+                @if (point.Marked)
+                {
+                    <circle class="mark mark-2" cx="@N(x)" cy="@N(Y(second))" r="5" />
+                }
+            }
             <rect class="hit" x="@N(x - _slot / 2)" y="@Top" width="@N(_slot)" height="@(Height - Top - Bottom)" data-tip="@point.Tip" />
         </g>
     }
 </svg>
 
 @code {
-    private const int Width = 720, Height = 260, Left = 48, Right = 16, Top = 14, Bottom = 30;
+    private const int Width = 720, Height = 260, Left = 48, Top = 14, Bottom = 30;
+    private const int LabelGap = 14;
 
     [Parameter, EditorRequired] public required IReadOnlyList<ChartPoint> Points { get; set; }
     [Parameter, EditorRequired] public required string Label { get; set; }
@@ -56,12 +80,14 @@
     [Parameter] public double? Reference { get; set; }
     [Parameter] public double? Min { get; set; }
     [Parameter] public double? Max { get; set; }
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public string? SecondName { get; set; }
 
     private List<double> _ticks = [];
-    private double _min, _max, _slot;
-    private int _labelEvery = 1;
+    private double _min, _max, _slot, _labelY, _secondLabelY;
+    private int _labelEvery = 1, _right = 16;
     private string _line = "";
-    private string? _band;
+    private string? _band, _secondLine;
 
     protected override void OnParametersSet()
     {
@@ -81,9 +107,22 @@
         for (var tick = _min; tick <= _max + step / 1000; tick += step)
             _ticks.Add(Math.Round(tick, 6));
 
-        _slot = (Width - Left - Right) / (double)Math.Max(Points.Count, 1);
+        _right = SecondName is null ? 16 : 56; // room for the labels at the end of each line
+        _slot = (Width - Left - _right) / (double)Math.Max(Points.Count, 1);
         _labelEvery = Math.Max(1, (int)Math.Ceiling(Points.Count / 7.0));
         _line = "M" + string.Join("L", Points.Select((p, i) => $"{N(X(i))} {N(Y(p.Value))}"));
+
+        _secondLine = null;
+        if (Points.Count > 0 && Points.All(p => p.Second.HasValue))
+        {
+            _secondLine = "M" + string.Join("L", Points.Select((p, i) => $"{N(X(i))} {N(Y(p.Second!.Value))}"));
+
+            // Keep the two end labels from sitting on top of each other.
+            var (first, second) = (Y(Points[^1].Value) + 4, Y(Points[^1].Second!.Value) + 4);
+            var push = Math.Max(0, LabelGap - Math.Abs(first - second)) / 2;
+            _labelY = first <= second ? first - push : first + push;
+            _secondLabelY = first <= second ? second + push : second - push;
+        }
 
         var banded = Points.Select((p, i) => (p, i)).Where(t => t.p.Low.HasValue).ToList();
         _band = banded.Count < 2 ? null

@@ -7,7 +7,7 @@ namespace BuyWindow.Web.Market;
 public sealed record WatchedTicker(string Symbol, string Name, TickerAnalysis Analysis);
 
 /// <summary>Keeps stored prices current and turns them into analyses for the pages.</summary>
-public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provider, TimeProvider clock)
+public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provider, TimeProvider clock, ILogger<MarketStore> logger)
 {
     public const string MarketSymbol = "SPY";
 
@@ -59,6 +59,7 @@ public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provid
             await db.Symbols.Where(s => s.Symbol == symbol && symbol != MarketSymbol).ExecuteDeleteAsync(ct);
             await db.Symbols.Where(s => s.Symbol == symbol)
                 .ExecuteUpdateAsync(u => u.SetProperty(s => s.IsWatched, false), ct);
+            logger.LogInformation("Removed {Symbol} from the watchlist", symbol);
         }
         finally
         {

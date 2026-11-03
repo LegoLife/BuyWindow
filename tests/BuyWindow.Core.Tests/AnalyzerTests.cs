@@ -64,6 +64,17 @@ public class AnalyzerTests
     }
 
     [Fact]
+    public void Says_buy_the_evening_of_a_signal_on_the_months_last_close()
+    {
+        var status = Status(November("2026-11-30", high: "2026-11-30"), "2026-11-30", "2026-11-30 21:00");
+
+        Assert.Equal(StatusKind.BuyNextOpen, status.Kind);
+        Assert.Equal(BuyReason.Signal, status.Reason);
+        Assert.Equal(new DateOnly(2026, 11, 30), status.SignalDate);
+        Assert.Equal(new DateOnly(2026, 12, 1), status.BuyDate);
+    }
+
+    [Fact]
     public void Holds_back_a_signal_when_the_ticker_is_stale()
     {
         var status = Status(November("2026-11-03", high: "2026-11-03"), "2026-11-03", "2026-11-04 21:00");
@@ -103,7 +114,7 @@ public class AnalyzerTests
     }
 
     [Fact]
-    public void Under_five_years_is_low_confidence_and_hides_the_pattern()
+    public void Under_five_years_is_low_confidence_but_still_names_a_best_day()
     {
         var market = Fixtures.Rising(new DateOnly(2020, 1, 1), 1800);
         var bars = Fixtures.Series(new DateOnly(2024, 1, 1), 300, i => 100 + i % 7);
@@ -111,7 +122,7 @@ public class AnalyzerTests
         var analysis = Analyzer.Analyze(bars, market, bars[^1].Date.ToDateTime(new TimeOnly(21, 0)));
 
         Assert.True(analysis.LowConfidence);
-        Assert.Null(analysis.Pattern);
+        Assert.NotNull(analysis.Pattern?.BestDay);
     }
 
     [Fact]

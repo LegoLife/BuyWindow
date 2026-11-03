@@ -87,7 +87,8 @@ else
                     <th>Status</th>
                     <th class="num">Score</th>
                     <th class="num">Trading days left</th>
-                    <th>Does timing help?</th>
+                    <th>Signal or first day?</th>
+                    <th>Best day to buy</th>
                     <th><span class="visually-hidden">Remove</span></th>
                 </tr>
             </thead>
@@ -111,6 +112,10 @@ else
                             <div class="muted small">
                                 @analysis.Backtest.Months.Count months@(analysis.LowConfidence ? " · low confidence" : "")
                             </div>
+                        </td>
+                        <td>
+                            <span class="best-day @(analysis.LowConfidence || analysis.Pattern?.BestWindow is null ? "status-neutral" : "")">@Display.BestDayLabel(analysis)</span>
+                            <div class="muted small">@Display.BestDayDetail(analysis)</div>
                         </td>
                         <td class="num">
                             <button class="link-button" @onclick="() => RemoveAsync(ticker.Symbol)" aria-label="Remove @ticker.Symbol">Remove</button>

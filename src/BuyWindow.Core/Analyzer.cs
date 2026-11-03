@@ -38,7 +38,7 @@ public static class Analyzer
             StatusFor(scores, last, sortedMarket.Count > 0 ? sortedMarket[^1].Date : null, easternNow),
             scores,
             Backtester.Run(bars, scores),
-            lowConfidence ? null : Pattern.Compute(bars),
+            Pattern.Compute(bars),
             lowConfidence,
             first,
             last,
@@ -58,7 +58,7 @@ public static class Analyzer
 
         // A ticker that finished warming up mid-month is judged only on the days it could be scored.
         var scorableDays = scores.Count > 0 ? month.Where(d => d >= scores[0].Date).ToList() : month;
-        var known = scores.Where(s => s.Date >= month[0] && s.Date <= anchor);
+        var known = scores.Where(s => s.Date <= anchor);
         var decision = BuyRule.Decide(scorableDays, known);
 
         if (!fresh)

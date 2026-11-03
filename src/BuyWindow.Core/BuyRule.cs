@@ -15,6 +15,11 @@ public static class BuyRule
     {
         var byDate = scores.ToDictionary(s => s.Date);
 
+        // The previous month's last close can't buy in its own month, so it counts toward this month's first open.
+        var closeBefore = MarketCalendar.PreviousTradingDay(tradingDays[0]);
+        if (byDate.TryGetValue(closeBefore, out var before) && before.Total >= Threshold)
+            return new BuyDecision(BuyReason.Signal, closeBefore, tradingDays[0]);
+
         for (var i = 0; i < tradingDays.Count - 1; i++)
         {
             if (!byDate.TryGetValue(tradingDays[i], out var score)) return null;

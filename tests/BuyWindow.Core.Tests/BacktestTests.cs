@@ -61,6 +61,19 @@ public class BacktestTests
     }
 
     [Fact]
+    public void A_signal_on_a_months_last_close_buys_at_the_next_months_first_open()
+    {
+        DateOnly oct29 = new(2026, 10, 29), oct30 = new(2026, 10, 30), nov2 = new(2026, 11, 2), nov3 = new(2026, 11, 3), dec1 = new(2026, 12, 1);
+        var bars = new[] { oct29, oct30, nov2, nov3, dec1 }.Select(d => Fixtures.Bar(d, 100)).ToArray();
+
+        var result = Backtester.Run(bars, [Score(oct29, 10), Score(oct30, 75), Score(nov2, 10), Score(nov3, 10), Score(dec1, 10)]);
+
+        var november = result.Months.Single(m => m.BuyDate.Month == 11);
+        Assert.Equal(nov2, november.BuyDate);
+        Assert.Equal(BuyReason.Signal, november.Reason);
+    }
+
+    [Fact]
     public void Counts_how_often_the_signal_triggered_rather_than_the_deadline()
     {
         DateOnly nov2 = new(2026, 11, 2), nov3 = new(2026, 11, 3), nov4 = new(2026, 11, 4);

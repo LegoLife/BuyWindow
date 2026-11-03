@@ -84,10 +84,11 @@ public sealed class AlertSender(
             text.AppendLine(alert!.Kind == AlertKind.Buy
                 ? $"{Display.StatusLabel(analysis.Status)}. {Display.StatusDetail(analysis.Status)}."
                 : "A month-end deadline buy is due, but the price data is out of date. Check the app before buying.");
-            text.AppendLine($"Does timing help? {Display.VerdictLabel(analysis.Backtest.Verdict)}, over {analysis.Backtest.Months.Count} months{(analysis.LowConfidence ? " (low confidence)" : "")}.");
+            text.AppendLine($"Signal or first day? {Display.VerdictLabel(analysis.Backtest.Verdict)}, over {analysis.Backtest.Months.Count} months{(analysis.LowConfidence ? " (low confidence)" : "")}.");
             text.AppendLine();
         }
         text.AppendLine(Link());
+        text.AppendLine($"Fidelity login: {FidelityLogin}");
         return text.ToString();
     }
 

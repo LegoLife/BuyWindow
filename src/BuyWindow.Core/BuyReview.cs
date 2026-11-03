@@ -24,7 +24,7 @@ public static class BuyReviews
 
         // The backtest stops at finished months, which leaves the latest one to decide from the calendar.
         var latest = bars[^1].Date;
-        if (BuyRule.Decide(MarketCalendar.TradingDays(latest.Year, latest.Month), analysis.Scores.Where(s => s.Date.Year == latest.Year && s.Date.Month == latest.Month)) is { } decision)
+        if (BuyRule.Decide(MarketCalendar.TradingDays(latest.Year, latest.Month), analysis.Scores) is { } decision)
             purchases.Add((decision.BuyDate, decision.Reason));
 
         var reviews = new List<BuyReview>();

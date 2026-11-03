@@ -29,12 +29,12 @@ else
         }
     </p>
 
-    <section class="verdict-panel @Display.VerdictClass(backtest.Verdict)" aria-label="Does timing help?">
+    <section class="verdict-panel @Display.VerdictClass(backtest.Verdict)" aria-label="Signal or first trading day?">
         <h2><span aria-hidden="true">@Display.VerdictGlyph(backtest.Verdict)</span> @Display.VerdictLabel(backtest.Verdict)</h2>
         <p>@Display.VerdictSentence(backtest)</p>
         @if (backtest.Months.Count > 1)
         {
-            <p class="muted small">Average saving against the first trading day: @Display.Percent(backtest.Edge.Mean) (95% range @Display.Percent(backtest.Edge.Low) to @Display.Percent(backtest.Edge.High)). Positive means the signal paid less.</p>
+            <p class="muted small">@Display.VerdictDetail(backtest)</p>
         }
     </section>
 
@@ -69,7 +69,20 @@ else
                 </table>
             </div>
 
-            <h3>Score and price over the last @_scorePoints.Count trading days</h3>
+            <div class="chart-heading">
+                <h3>Score and price @ChartPeriod()</h3>
+                <label class="range-picker">
+                    <span class="visually-hidden">Chart range</span>
+                    <select @bind="_rangeMonths" @bind:after="BuildScoreChart">
+                        <option value="1">1 month</option>
+                        <option value="3">3 months</option>
+                        <option value="6">6 months</option>
+                        <option value="12">1 year</option>
+                        <option value="60">5 years</option>
+                        <option value="@MaxRange">Max</option>
+                    </select>
+                </label>
+            </div>
             <LineChart Points="_scorePoints" Label="@($"{_ticker.Symbol} daily buy score and closing price")" Min="0" Max="100" Reference="BuyRule.Threshold" Name="Score" SecondName="Price" />
             <p class="muted small">Price is drawn on the same 0 to 100 scale: 0 is its lowest close in this period (@_priceLow.ToString("0.00")) and 100 is its highest (@_priceHigh.ToString("0.00")). Hover for the actual price. The flat line at @BuyRule.Threshold.ToString("0") is the buy trigger and applies only to the score. Dots mark the days the rule bought, at that day's open, which can differ from the close shown here.</p>
 
@@ -98,6 +111,37 @@ else
                 </div>
                 <p class="muted small">Prices are adjusted for later splits and dividends, so they can differ from what was actually quoted that day.</p>
             }
+
+            <h3>Moving averages</h3>
+            <p class="muted small">For information only. These don't affect the score or the buy rule.</p>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr><th>Average</th><th class="num">Value</th><th class="num">Close compared with it</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var average in _averages)
+                        {
+                            <tr>
+                                <td>@average.Period-day</td>
+                                @if (average.Latest is { } value)
+                                {
+                                    <td class="num">@value.ToString("0.00")</td>
+                                    <td class="num">@Display.Percent(MovingAverages.PercentFrom(analysis.Bars[^1].Close, value))</td>
+                                }
+                                else
+                                {
+                                    <td class="num muted" colspan="2">Needs @average.Period trading days</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Price and moving averages @ChartPeriod()</h3>
+            <LineChart Points="_averagePoints" Lines="_averageLines" Label="@($"{_ticker.Symbol} closing price with its 60, 90 and 200-day moving averages")" Name="Price" />
+            <p class="muted small">Follows the range picked for the chart above. Hover for the values on any day.</p>
         }
     </section>
 
@@ -148,19 +192,52 @@ else
                 </div>
             </details>
         }
+
+        @if (_trend is { } trend)
+        {
+            <h3>Test: adding this ticker's 200-day average to the score</h3>
+            <p><strong>@Display.TrendSentence(trend)</strong></p>
+            @if (trend.Difference.Count > 0)
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                            <tr><th>Score</th><th class="num">Months the signal triggered</th><th class="num">Saving vs first day</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Current</td>
+                                <td class="num">@trend.Current.SignalMonths of @trend.Current.Months.Count</td>
+                                <td class="num">@Display.Percent(trend.Current.Edge.Mean)</td>
+                            </tr>
+                            <tr>
+                                <td>With 200-day average</td>
+                                <td class="num">@trend.WithTrend.SignalMonths of @trend.WithTrend.Months.Count</td>
+                                <td class="num">@Display.Percent(trend.WithTrend.Edge.Mean)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="muted small">@Display.TrendDetail(trend) Both use the same months, which can be fewer than the backtest above. Being at or above the average earns full points, and six indicators share the 100 points, with the trigger still at @BuyRule.Threshold.ToString("0"). This is only a test: the live score and alerts don't use it.</p>
+            }
+        }
     </section>
 
     <section>
         <h2>Day-of-month pattern</h2>
-        @if (analysis.Pattern is not { } pattern)
+        @if (analysis.LowConfidence || analysis.Pattern is not { } pattern)
         {
-            <p class="muted">Hidden: there's under 5 years of data, so any pattern would mostly be noise.</p>
+            @if (analysis.Pattern?.BestDay is not null)
+            {
+                <p><strong>Best day so far: @Display.BestDayLabel(analysis).ToLowerInvariant()</strong>. @Display.BestDayDetail(analysis).</p>
+            }
+            <p class="muted">The full pattern is hidden: there's under 5 years of data, so it would mostly be noise.</p>
         }
         else
         {
             @if (pattern.BestWindow is { } window)
             {
-                <p><strong>Cheapest window: trading days @window.FirstTradingDay-@window.LastTradingDay</strong>, about the @Ordinal(window.ApproxFirstDayOfMonth) to the @Ordinal(window.ApproxLastDayOfMonth), typically @Display.Percent(window.Range.Mean) from the month's average.</p>
+                <p><strong>Cheapest window: trading days @window.FirstTradingDay-@window.LastTradingDay</strong>, about the @Display.Ordinal(window.ApproxFirstDayOfMonth) to the @Display.Ordinal(window.ApproxLastDayOfMonth), typically @Display.Percent(window.Range.Mean) from the month's average.</p>
             }
             else
             {
@@ -179,7 +256,7 @@ else
                             {
                                 <tr>
                                     <td class="num">@day.TradingDay</td>
-                                    <td class="num">@Ordinal(day.ApproxDayOfMonth)</td>
+                                    <td class="num">@Display.Ordinal(day.ApproxDayOfMonth)</td>
                                     <td class="num">@Display.Percent(day.Range.Mean)</td>
                                     <td class="num">@Display.Percent(day.Range.Low) to @Display.Percent(day.Range.High)</td>
                                     <td class="num">@day.Range.Count</td>
@@ -194,15 +271,31 @@ else
 }
 
 @code {
-    private const int ScoreDays = 120;
-
     [Parameter] public required string Symbol { get; set; }
 
     private WatchedTicker? _ticker;
     private IReadOnlyList<ChartPoint> _scorePoints = [];
     private IReadOnlyList<ChartPoint> _patternPoints = [];
+    private IReadOnlyList<ChartPoint> _averagePoints = [];
+    private IReadOnlyList<ChartLine> _averageLines = [];
+    private IReadOnlyList<MovingAverage> _averages = [];
+    private TrendComparisonResult? _trend;
     private IReadOnlyList<BuyReview> _reviews = [];
     private double _priceLow, _priceHigh;
+    private const int MaxRange = 0;
+
+    // Months back, with how the chart's heading names that span.
+    private static readonly Dictionary<int, string> ChartRanges = new()
+    {
+        [1] = "month",
+        [3] = "3 months",
+        [6] = "6 months",
+        [12] = "year",
+        [60] = "5 years",
+    };
+
+    private int _rangeMonths = 12;
+    private bool _rangeCovered;
     private bool _loading = true;
 
     protected override async Task OnParametersSetAsync()
@@ -211,7 +304,34 @@ else
         _loading = false;
         if (_ticker is null) return;
 
-        var recent = _ticker.Analysis.Scores.TakeLast(ScoreDays).ToList();
+        var analysis = _ticker.Analysis;
+        _averages = MovingAverages.For(analysis.Bars);
+        _trend = await Task.Run(() => TrendComparison.Run(analysis.Bars, analysis.Scores));
+
+        BuildScoreChart();
+
+        _patternPoints = (_ticker.Analysis.Pattern?.Days ?? [])
+            .Select(d => new ChartPoint(
+                Display.Ordinal(d.ApproxDayOfMonth),
+                d.Range.Mean,
+                $"Trading day {d.TradingDay}, about the {Display.Ordinal(d.ApproxDayOfMonth)}: {Display.Percent(d.Range.Mean)}",
+                double.IsFinite(d.Range.Low) ? d.Range.Low : null,
+                double.IsFinite(d.Range.High) ? d.Range.High : null))
+            .ToList();
+    }
+
+    private string ChartPeriod() =>
+        _rangeMonths == MaxRange ? $"since {Display.Date(_ticker!.Analysis.Scores[0].Date)}"
+        : _rangeCovered ? $"over the last {ChartRanges[_rangeMonths]}"
+        : $"over the last {_scorePoints.Count} trading days";
+
+    private void BuildScoreChart()
+    {
+        var scores = _ticker!.Analysis.Scores;
+        var start = _rangeMonths == MaxRange || scores.Count == 0 ? DateOnly.MinValue : scores[^1].Date.AddMonths(-_rangeMonths);
+        var recent = scores.Where(s => s.Date >= start).ToList();
+        _rangeCovered = scores.Count > 0 && scores[0].Date <= start;
+        var labelFormat = _rangeMonths is MaxRange or > 12 ? "MMM yyyy" : "MMM d";
         var bars = _ticker.Analysis.Bars.ToDictionary(b => b.Date);
         var reviews = recent.Count > 0 ? BuyReviews.Since(_ticker.Analysis, recent[0].Date) : [];
         var bought = reviews.ToDictionary(r => r.BuyDate);
@@ -227,29 +347,35 @@ else
 
         _scorePoints = recent
             .Select(s => new ChartPoint(
-                s.Date.ToString("MMM d"),
+                s.Date.ToString(labelFormat),
                 s.Total,
                 Tip(s),
                 Marked: bought.ContainsKey(s.Date),
                 Second: priceRange > 0 ? (bars[s.Date].Close - _priceLow) / priceRange * 100 : 50))
             .ToList();
 
-        _patternPoints = (_ticker.Analysis.Pattern?.Days ?? [])
-            .Select(d => new ChartPoint(
-                Ordinal(d.ApproxDayOfMonth),
-                d.Range.Mean,
-                $"Trading day {d.TradingDay}, about the {Ordinal(d.ApproxDayOfMonth)}: {Display.Percent(d.Range.Mean)}",
-                double.IsFinite(d.Range.Low) ? d.Range.Low : null,
-                double.IsFinite(d.Range.High) ? d.Range.High : null))
-            .ToList();
+        BuildAverageChart(recent, labelFormat);
     }
 
-    private static string Ordinal(int day) => (day % 100, day % 10) switch
+    // Covers the same days as the score chart, so the two can be read together.
+    private void BuildAverageChart(IReadOnlyList<DayScore> days, string labelFormat)
     {
-        (11 or 12 or 13, _) => $"{day}th",
-        (_, 1) => $"{day}st",
-        (_, 2) => $"{day}nd",
-        (_, 3) => $"{day}rd",
-        _ => $"{day}th",
-    };
+        var allBars = _ticker!.Analysis.Bars;
+        var indexes = allBars.Select((bar, i) => (bar.Date, i)).ToDictionary(x => x.Date, x => x.i);
+        var shown = days.Select(d => indexes[d.Date]).ToList();
+
+        string Tip(int i)
+        {
+            var readings = _averages.Where(a => a.Values[i] is not null).Select(a => $"{a.Period}-day {a.Values[i]:0.00}");
+            return string.Join(", ", new[] { $"{Display.Date(allBars[i].Date)}: closed at {allBars[i].Close:0.00}" }.Concat(readings));
+        }
+
+        _averagePoints = shown
+            .Select(i => new ChartPoint(allBars[i].Date.ToString(labelFormat), allBars[i].Close, Tip(i)))
+            .ToList();
+
+        _averageLines = _averages
+            .Select((a, slot) => new ChartLine($"{a.Period}-day", shown.Select(i => a.Values[i]).ToList(), slot + 2))
+            .ToList();
+    }
 }

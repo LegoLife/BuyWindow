@@ -38,6 +38,24 @@ public class BuyRuleTests
     }
 
     [Fact]
+    public void A_high_score_on_the_previous_months_last_close_buys_at_the_first_open()
+    {
+        var october30 = new DateOnly(2026, 10, 30);
+
+        var decision = BuyRule.Decide(Days, [Score(october30, 75)]);
+
+        Assert.Equal(BuyReason.Signal, decision!.Reason);
+        Assert.Equal(october30, decision.SignalDate);
+        Assert.Equal(Days[0], decision.BuyDate);
+    }
+
+    [Fact]
+    public void A_high_score_earlier_in_the_previous_month_does_not_carry_over()
+    {
+        Assert.Null(BuyRule.Decide(Days, [Score(new DateOnly(2026, 10, 29), 75), Score(new DateOnly(2026, 10, 30), 10)]));
+    }
+
+    [Fact]
     public void Undecided_while_the_month_is_still_open()
     {
         Assert.Null(BuyRule.Decide(Days, [Score(Days[0], 10), Score(Days[1], 10)]));

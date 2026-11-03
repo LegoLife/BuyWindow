@@ -46,16 +46,22 @@ Between those points the score scales evenly. A negative MACD histogram rising f
 
 **Buy rule.** Each ticker gets one purchase a month.
 
-- The first close with a score of 70 or higher means buy at the next trading day's open.
+- The first close with a score of 70 or higher means buy at the next trading day's open. A month's chances start with the previous month's last close, which buys at the first open.
 - If that hasn't happened by the second-to-last trading day's close, buy at the last trading day's open.
 
 **Backtest and verdict.** The backtest applies the same rule to past months, using next-day opening prices. It compares the price paid with the first trading day's open and shows how both sit above the month's lowest price. The verdict comes from the 95% confidence range of the monthly difference from the first day:
 
-- **Likely edge:** the whole range shows the signal paying less.
-- **Likely worse:** the whole range shows it paying more.
-- **No clear edge:** the range includes zero.
+- **Signal better:** the whole range shows the signal paying less.
+- **First day better:** the whole range shows it paying more.
+- **No clear winner:** the range includes zero.
 
-**History.** Up to the last 10 years, using only data after the most recent trading gap of more than 30 days. Under 5 years is labeled low confidence and the day-of-month pattern is hidden.
+**Moving averages.** The ticker page shows the 60-, 90- and 200-day averages as readings and on a chart. They're for information only and don't affect the score or the buy rule.
+
+**200-day test.** The ticker page also backtests the current score against a version with the ticker's own 200-day average added. At or above the average earns full points, the six indicators share the 100 points, and the trigger stays at 70. Both versions use the same months, so this test can cover fewer months than the main backtest. The live score and alerts don't use this version.
+
+**Best day to buy.** The watchlist names the day of the month with the lowest average price, measured against each month's average. If a 5-day stretch clearly beats that average, the day comes from that stretch. Otherwise it's the lowest day overall, marked "Could be chance". Tickers with under 5 years of data use the finished months they have and are also marked "Could be chance". It's for information only and doesn't affect the buy rule.
+
+**History.** Up to the last 10 years, using only data after the most recent trading gap of more than 30 days. Under 5 years is labeled low confidence and the full day-of-month pattern is hidden, though the best day is still shown.
 
 **Stale data.** If a ticker or SPY isn't current, the app shows a warning and no Buy status, including a deadline buy that's due.
 
@@ -74,3 +80,6 @@ Prices refresh at 6:00 PM Eastern on trading days and again at 8:05 PM, after Ti
 | Date | Decision |
 |---|---|
 | 2026-10-30 | The buy threshold stays at 70. On BE, NBIS, MU and HOOD it triggered in about 13-29% of months, so it passes the "almost never triggers" check. It should not be tuned to improve backtest results. |
+| 2026-10-31 | A signal on a month's last close now buys at the next month's first open. It used to count for neither month, so SNDK's 75 on Oct 30 sent no alert. This was made to stop missing alerts, not to improve backtest results. |
+| 2026-11-02 | The live score stays at five indicators. Adding the ticker's 200-day average showed no clear difference on BE, MU, NBIS, SNDK or TSLA, checked on the home server on Nov 2, 2026. The test's direction and 70 trigger were set before seeing results and should not be tuned to improve them. |
+| 2026-11-02 | Rule of 40 stays out of the score. It changes quarterly, so it can't pick a day within a month, and it doesn't apply to ETFs. |

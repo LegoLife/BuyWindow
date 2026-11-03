@@ -56,4 +56,38 @@ public class PatternTests
 
         Assert.Null(Pattern.Compute(bars).BestWindow);
     }
+
+    [Fact]
+    public void Best_day_is_the_cheapest_day_inside_the_window()
+    {
+        var random = new Random(7);
+        var bars = Months(72, day => day switch
+        {
+            10 => 88,
+            >= 8 and <= 12 => 92,
+            _ => 100,
+        } + random.NextDouble());
+
+        Assert.Equal(10, Pattern.Compute(bars).BestDay?.TradingDay);
+    }
+
+    [Fact]
+    public void Without_a_window_best_day_is_the_lowest_day_every_month_reaches()
+    {
+        var random = new Random(42);
+        var bars = Months(72, _ => 100 + random.NextDouble() * 10);
+
+        var pattern = Pattern.Compute(bars);
+
+        Assert.Null(pattern.BestWindow);
+        Assert.NotNull(pattern.BestDay);
+        Assert.Equal(pattern.Months, pattern.BestDay.Range.Count);
+        Assert.Equal(pattern.Days.Where(d => d.Range.Count == pattern.Months).Min(d => d.Range.Mean), pattern.BestDay.Range.Mean);
+    }
+
+    [Fact]
+    public void Names_no_best_day_without_finished_months()
+    {
+        Assert.Null(Pattern.Compute([]).BestDay);
+    }
 }

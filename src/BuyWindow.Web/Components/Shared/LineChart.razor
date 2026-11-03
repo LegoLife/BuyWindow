@@ -1,10 +1,17 @@
-@* One or two series on one axis, with an optional confidence band and reference line. *@
+@* One or more series on one axis, with an optional confidence band and reference line. *@
 
-@if (SecondName is not null)
+@if (_endLabels.Count > 0)
 {
     <div class="chart-legend">
         <span><i class="swatch" aria-hidden="true"></i>@Name</span>
-        <span><i class="swatch swatch-2" aria-hidden="true"></i>@SecondName</span>
+        @if (SecondName is not null)
+        {
+            <span><i class="swatch swatch-2" aria-hidden="true"></i>@SecondName</span>
+        }
+        @foreach (var line in Lines)
+        {
+            <span><i class="swatch swatch-@line.Slot" aria-hidden="true"></i>@line.Name</span>
+        }
     </div>
 }
 <svg class="chart" viewBox="0 0 @Width @Height" role="img" aria-label="@Label">
@@ -36,10 +43,14 @@
     @if (_secondLine is not null)
     {
         <path class="series series-2" d="@_secondLine" />
-        <g>
-            <text class="end-label" x="@N(X(Points.Count - 1) + 8)" y="@N(_labelY)">@Name</text>
-            <text class="end-label" x="@N(X(Points.Count - 1) + 8)" y="@N(_secondLabelY)">@SecondName</text>
-        </g>
+    }
+    @foreach (var (path, slot) in _extraLines)
+    {
+        <path class="series series-@slot" d="@path" />
+    }
+    @foreach (var (text, y) in _endLabels)
+    {
+        <g><text class="end-label" x="@N(X(Points.Count - 1) + 8)" y="@N(y)">@text</text></g>
     }
 
     @for (var i = 0; i < Points.Count; i++)
@@ -55,14 +66,14 @@
             <circle class="dot" cx="@N(x)" cy="@N(Y(point.Value))" r="4" />
             @if (point.Marked)
             {
-                <circle class="mark" cx="@N(x)" cy="@N(Y(point.Value))" r="5" />
+                <circle class="mark @_markClass" cx="@N(x)" cy="@N(Y(point.Value))" r="@_markRadius" />
             }
             @if (point.Second is { } second)
             {
                 <circle class="dot dot-2" cx="@N(x)" cy="@N(Y(second))" r="4" />
                 @if (point.Marked)
                 {
-                    <circle class="mark mark-2" cx="@N(x)" cy="@N(Y(second))" r="5" />
+                    <circle class="mark mark-2 @_markClass" cx="@N(x)" cy="@N(Y(second))" r="@_markRadius" />
                 }
             }
             <rect class="hit" x="@N(x - _slot / 2)" y="@Top" width="@N(_slot)" height="@(Height - Top - Bottom)" data-tip="@point.Tip" />
@@ -73,6 +84,7 @@
 @code {
     private const int Width = 720, Height = 260, Left = 48, Top = 14, Bottom = 30;
     private const int LabelGap = 14;
+    private const int CrowdedPoints = 300; // past about a year of days, full-size marks hide the lines
 
     [Parameter, EditorRequired] public required IReadOnlyList<ChartPoint> Points { get; set; }
     [Parameter, EditorRequired] public required string Label { get; set; }
@@ -82,18 +94,27 @@
     [Parameter] public double? Max { get; set; }
     [Parameter] public string? Name { get; set; }
     [Parameter] public string? SecondName { get; set; }
+    [Parameter] public IReadOnlyList<ChartLine> Lines { get; set; } = [];
 
     private List<double> _ticks = [];
-    private double _min, _max, _slot, _labelY, _secondLabelY;
+    private double _min, _max, _slot;
     private int _labelEvery = 1, _right = 16;
     private string _line = "";
     private string? _band, _secondLine;
+    private List<(string Path, int Slot)> _extraLines = [];
+    private List<(string Text, double Y)> _endLabels = [];
+    private int _markRadius = 5;
+    private string _markClass = "";
 
     protected override void OnParametersSet()
     {
+        _markRadius = Points.Count > CrowdedPoints ? 2 : 5;
+        _markClass = Points.Count > CrowdedPoints ? "mark-small" : "";
+
         var values = Points.Select(p => p.Value)
             .Concat(Points.Where(p => p.Low.HasValue).SelectMany(p => new[] { p.Low!.Value, p.High!.Value }))
             .Concat(Reference.HasValue ? [Reference.Value] : [])
+            .Concat(Lines.SelectMany(l => l.Values).OfType<double>())
             .ToList();
 
         var low = Min ?? (values.Count > 0 ? values.Min() : 0);
@@ -107,7 +128,7 @@
         for (var tick = _min; tick <= _max + step / 1000; tick += step)
             _ticks.Add(Math.Round(tick, 6));
 
-        _right = SecondName is null ? 16 : 56; // room for the labels at the end of each line
+        _right = SecondName is null && Lines.Count == 0 ? 16 : 56; // room for the labels at the end of each line
         _slot = (Width - Left - _right) / (double)Math.Max(Points.Count, 1);
         _labelEvery = Math.Max(1, (int)Math.Ceiling(Points.Count / 7.0));
         _line = "M" + string.Join("L", Points.Select((p, i) => $"{N(X(i))} {N(Y(p.Value))}"));
@@ -116,19 +137,57 @@
         if (Points.Count > 0 && Points.All(p => p.Second.HasValue))
         {
             _secondLine = "M" + string.Join("L", Points.Select((p, i) => $"{N(X(i))} {N(Y(p.Second!.Value))}"));
-
-            // Keep the two end labels from sitting on top of each other.
-            var (first, second) = (Y(Points[^1].Value) + 4, Y(Points[^1].Second!.Value) + 4);
-            var push = Math.Max(0, LabelGap - Math.Abs(first - second)) / 2;
-            _labelY = first <= second ? first - push : first + push;
-            _secondLabelY = first <= second ? second + push : second - push;
         }
+
+        _extraLines = Lines.Select(l => (LinePath(l.Values), l.Slot)).Where(l => l.Item1.Length > 0).ToList();
+        _endLabels = BuildEndLabels();
 
         var banded = Points.Select((p, i) => (p, i)).Where(t => t.p.Low.HasValue).ToList();
         _band = banded.Count < 2 ? null
             : "M" + string.Join("L", banded.Select(t => $"{N(X(t.i))} {N(Y(t.p.High!.Value))}"))
               + "L" + string.Join("L", banded.AsEnumerable().Reverse().Select(t => $"{N(X(t.i))} {N(Y(t.p.Low!.Value))}"))
               + "Z";
+    }
+
+    // A null value lifts the pen, so a line that's still warming up starts partway across.
+    private string LinePath(IReadOnlyList<double?> values)
+    {
+        var path = new System.Text.StringBuilder();
+        var drawing = false;
+        for (var i = 0; i < values.Count; i++)
+        {
+            if (values[i] is not { } value)
+            {
+                drawing = false;
+                continue;
+            }
+            path.Append(drawing ? 'L' : 'M').Append(N(X(i))).Append(' ').Append(N(Y(value)));
+            drawing = true;
+        }
+        return path.ToString();
+    }
+
+    // One label per line at its last value, spread just enough that none sit on top of each other.
+    private List<(string Text, double Y)> BuildEndLabels()
+    {
+        if (Points.Count == 0 || (_secondLine is null && _extraLines.Count == 0)) return [];
+
+        var labels = new List<(string Text, double Y)> { (Name ?? "", Y(Points[^1].Value) + 4) };
+        if (_secondLine is not null)
+            labels.Add((SecondName ?? "", Y(Points[^1].Second!.Value) + 4));
+        foreach (var line in Lines)
+        {
+            if (line.Values.Count > 0 && line.Values[^1] is { } last)
+                labels.Add((line.Name, Y(last) + 4));
+        }
+
+        var wanted = labels.OrderBy(l => l.Y).ToList();
+        var spread = new List<(string Text, double Y)>();
+        foreach (var label in wanted)
+            spread.Add((label.Text, spread.Count == 0 ? label.Y : Math.Max(label.Y, spread[^1].Y + LabelGap)));
+
+        var recenter = wanted.Average(l => l.Y) - spread.Average(l => l.Y);
+        return spread.Select(l => (l.Text, l.Y + recenter)).ToList();
     }
 
     private double X(int index) => Left + _slot * (index + 0.5);

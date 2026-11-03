@@ -5,7 +5,17 @@ public sealed record PatternDay(int TradingDay, ConfidenceInterval Range, int Ap
 
 public sealed record PatternWindow(int FirstTradingDay, int LastTradingDay, int ApproxFirstDayOfMonth, int ApproxLastDayOfMonth, ConfidenceInterval Range);
 
-public sealed record PatternResult(int Months, IReadOnlyList<PatternDay> Days, PatternWindow? BestWindow);
+public sealed record PatternResult(int Months, IReadOnlyList<PatternDay> Days, PatternWindow? BestWindow)
+{
+    /// <summary>
+    /// The cheapest day on average: inside the best window if there is one, otherwise among the days every month reaches.
+    /// Without a <see cref="BestWindow"/> it may only be luck.
+    /// </summary>
+    public PatternDay? BestDay => (BestWindow is { } window
+            ? Days.Where(d => d.TradingDay >= window.FirstTradingDay && d.TradingDay <= window.LastTradingDay)
+            : Days.Where(d => d.Range.Count == Months))
+        .MinBy(d => d.Range.Mean);
+}
 
 public static class Pattern
 {

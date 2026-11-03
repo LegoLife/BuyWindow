@@ -18,6 +18,27 @@ public static class Display
     public static string Percent(double value) =>
         double.IsFinite(value) ? $"{value:+0.0;-0.0;0.0}%" : "n/a";
 
+    public static string Ordinal(int day) => (day % 100, day % 10) switch
+    {
+        (11 or 12 or 13, _) => $"{day}th",
+        (_, 1) => $"{day}st",
+        (_, 2) => $"{day}nd",
+        (_, 3) => $"{day}rd",
+        _ => $"{day}th",
+    };
+
+    public static string BestDayLabel(TickerAnalysis analysis) =>
+        analysis.Pattern?.BestDay is { } day ? $"Around the {Ordinal(day.ApproxDayOfMonth)}" : "No best day";
+
+    public static string BestDayDetail(TickerAnalysis analysis)
+    {
+        var pattern = analysis.Pattern;
+        if (pattern?.BestDay is null) return "No finished months yet";
+        if (analysis.LowConfidence) return $"Could be chance: only {pattern.Months} {(pattern.Months == 1 ? "month" : "months")} of data";
+        if (pattern.BestWindow is not { } window) return "Could be chance: no part of the month stands out";
+        return $"Cheapest stretch: {Ordinal(window.ApproxFirstDayOfMonth)} to {Ordinal(window.ApproxLastDayOfMonth)}";
+    }
+
     public static string StatusLabel(TickerStatus status) => status.Kind switch
     {
         StatusKind.BuyNextOpen => $"Buy at open {Short(status.BuyDate)}",
@@ -55,9 +76,9 @@ public static class Display
 
     public static string VerdictLabel(Verdict verdict) => verdict switch
     {
-        Verdict.LikelyEdge => "Likely edge",
-        Verdict.LikelyWorse => "Likely worse",
-        _ => "No clear edge",
+        Verdict.LikelyEdge => "Signal better",
+        Verdict.LikelyWorse => "First day better",
+        _ => "No clear winner",
     };
 
     public static string VerdictClass(Verdict verdict) => verdict switch
@@ -82,9 +103,40 @@ public static class Display
         var size = Math.Abs(result.Edge.Mean).ToString("0.0", CultureInfo.InvariantCulture);
         return result.Verdict switch
         {
-            Verdict.LikelyEdge => $"Over {n} months, following the signal paid {size}% less on average than buying on the first trading day.",
-            Verdict.LikelyWorse => $"Over {n} months, following the signal paid {size}% more on average than buying on the first trading day, so buying on that day has been better.",
-            _ => $"Over {n} months, the signal's difference from buying on the first trading day is within the noise, so there's no evidence that waiting for the signal helps.",
+            Verdict.LikelyEdge => $"The signal has been better. Over {n} months, it paid {size}% less on average than buying on the first trading day.",
+            Verdict.LikelyWorse => $"Buying on the first trading day has been better. Over {n} months, the signal paid {size}% more on average.",
+            _ => $"Neither has clearly been better. Over {n} months, the signal's difference from the first trading day could just be chance.",
         };
+    }
+
+    public static string VerdictDetail(BacktestResult result) =>
+        $"Signal's price compared with the first trading day: {Difference(result.Edge.Mean)} on average. " +
+        $"The 95% likely range is {Difference(result.Edge.Low)} to {Difference(result.Edge.High)}.";
+
+    public static string TrendSentence(TrendComparisonResult result)
+    {
+        var n = result.Difference.Count;
+        if (n == 0) return $"There are no finished months to test yet. This needs {TrendComparison.AveragePeriod} trading days of history first.";
+
+        var size = Math.Abs(result.Difference.Mean).ToString("0.0", CultureInfo.InvariantCulture);
+        return result.Verdict switch
+        {
+            Verdict.LikelyEdge => $"Adding it has been better. Over {n} months, it paid {size}% less on average than the current score.",
+            Verdict.LikelyWorse => $"Adding it has been worse. Over {n} months, it paid {size}% more on average than the current score.",
+            _ => $"No clear difference. Over {n} months, the gap between the two could just be chance.",
+        };
+    }
+
+    public static string TrendDetail(TrendComparisonResult result) =>
+        $"It changed the purchase day in {result.MonthsChanged} of {result.Difference.Count} months. " +
+        $"Price compared with the current score: {Difference(result.Difference.Mean)} on average. " +
+        $"The 95% likely range is {Difference(result.Difference.Low)} to {Difference(result.Difference.High)}.";
+
+    // A positive edge means the signal paid less.
+    private static string Difference(double edge)
+    {
+        if (!double.IsFinite(edge)) return "n/a";
+        var size = Math.Abs(edge).ToString("0.0", CultureInfo.InvariantCulture);
+        return edge >= 0 ? $"{size}% lower" : $"{size}% higher";
     }
 }

@@ -39,8 +39,7 @@ public static class Backtester
             if (!scoreDates.Contains(monthBars[0].Date)) continue;
 
             var days = monthBars.Select(b => b.Date).ToList();
-            var monthScores = scores.Where(s => s.Date >= days[0] && s.Date <= days[^1]);
-            if (BuyRule.Decide(days, monthScores) is not { } decision) continue;
+            if (BuyRule.Decide(days, scores) is not { } decision) continue;
 
             var buyPrice = monthBars.First(b => b.Date == decision.BuyDate).Open;
             var firstOpen = monthBars[0].Open;

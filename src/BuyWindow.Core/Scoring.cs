@@ -12,9 +12,10 @@ public sealed record DayScore(
     double PercentB,
     double MacdHistogram,
     double VolumeRatio,
-    bool MarketAboveAverage)
+    bool MarketAboveAverage,
+    double TrendPoints = 0) // only set by TrendComparison; the live score doesn't use it
 {
-    public double Total => RsiPoints + BollingerPoints + MacdPoints + VolumePoints + MarketPoints;
+    public double Total => RsiPoints + BollingerPoints + MacdPoints + VolumePoints + MarketPoints + TrendPoints;
 }
 
 /// <summary>

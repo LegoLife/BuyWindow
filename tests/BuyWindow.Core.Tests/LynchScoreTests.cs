@@ -146,3 +146,19 @@ public class LynchScoreTests
         Assert.All(result.Checks, c => Assert.Null(c.Passes));
     }
 }
+
+public class FinancialsAsOfTests
+{
+    [Fact]
+    public void Leaves_out_numbers_filed_later()
+    {
+        var d = (string s) => DateOnly.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+        var f = new Financials(
+            [new(d("2025-01-01"), d("2025-12-31"), 5, d("2026-02-01")), new(d("2026-01-01"), d("2026-06-30"), 3, d("2026-08-01"))],
+            [], [], new Dictionary<string, IReadOnlyList<ReportedValue>> { ["LongTermDebt"] = [new(null, d("2026-06-30"), 1, d("2026-08-01"))] });
+
+        var then = f.AsOf(d("2026-03-01"));
+        Assert.Single(then.DilutedEps);
+        Assert.Empty(then.Debt["LongTermDebt"]);
+    }
+}

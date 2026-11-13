@@ -116,25 +116,6 @@ public static class Display
         $"Signal's price compared with the first trading day: {Difference(result.Edge.Mean)} on average. " +
         $"The 95% likely range is {Difference(result.Edge.Low)} to {Difference(result.Edge.High)}.";
 
-    public static string TrendSentence(TrendComparisonResult result)
-    {
-        var n = result.Difference.Count;
-        if (n == 0) return $"There are no finished months to test yet. This needs {TrendComparison.AveragePeriod} trading days of history first.";
-
-        var size = Math.Abs(result.Difference.Mean).ToString("0.0", CultureInfo.InvariantCulture);
-        return result.Verdict switch
-        {
-            Verdict.LikelyEdge => $"Adding it has been better. Over {n} months, it paid {size}% less on average than the current score.",
-            Verdict.LikelyWorse => $"Adding it has been worse. Over {n} months, it paid {size}% more on average than the current score.",
-            _ => $"No clear difference. Over {n} months, the gap between the two could just be chance.",
-        };
-    }
-
-    public static string TrendDetail(TrendComparisonResult result) =>
-        $"It changed the purchase day in {result.MonthsChanged} of {result.Difference.Count} months. " +
-        $"Price compared with the current score: {Difference(result.Difference.Mean)} on average. " +
-        $"The 95% likely range is {Difference(result.Difference.Low)} to {Difference(result.Difference.High)}.";
-
     // A positive edge means the signal paid less.
     private static string Difference(double edge)
     {

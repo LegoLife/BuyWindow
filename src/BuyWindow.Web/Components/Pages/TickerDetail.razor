@@ -58,110 +58,33 @@ else
             }
         </p>
     }
-    @if (Sec.IsConfigured)
-    {
-        <section class="lynch" aria-label="Peter Lynch checks">
-            @if (_financials is { } financials && _move is { } priced)
+    <section class="decision" aria-label="Should I buy?">
+        <p class="decision-line">
+            @if (_own is { } own)
             {
-                var lynch = LynchScore.For(financials, priced.Price);
-                <h2>Peter Lynch checks: @lynch.Passed of @lynch.Checked pass</h2>
-                <div class="table-wrap">
-                    <table class="data">
-                        <thead>
-                            <tr><th>Rule</th><th>Needs</th><th>Reading</th><th>Result</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var check in lynch.Checks)
-                            {
-                                <tr>
-                                    <td>@check.Name</td>
-                                    <td>@check.Rule</td>
-                                    <td class="@(check.Passes is null ? "muted" : "")">@check.Reading</td>
-                                    <td class="@(check.Passes switch { true => "check-pass", false => "check-fail", _ => "muted" })">
-                                        <span aria-hidden="true">@(check.Passes switch { true => "✓", false => "✗", _ => "–" })</span>
-                                        @(check.Passes switch { true => "Pass", false => "Fail", _ => "Not checked" })
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                <p class="muted small">
-                    Earnings through @Display.Date(lynch.EarningsThrough) and balance sheet on @Display.Date(lynch.BalanceSheetAt), from SEC filings, at a price of @priced.Price.ToString("0.00").
-                    Growth compares the last 12 months' earnings per share with the 12 months before. For information only: this doesn't affect the score or the buy rule.
-                </p>
-            }
-            else if (_financialsLoaded)
-            {
-                <p class="muted small">Peter Lynch checks: no company financials found at the SEC. ETFs and most foreign companies don't file them there.</p>
+                <span class="status @OwnClass(own.Verdict)"><span aria-hidden="true">@OwnGlyph(own.Verdict)</span> @OwnLabel(own.Verdict)</span>
             }
             else
             {
-                <p class="muted small">Looking up the company's financials for the Peter Lynch checks…</p>
+                <span class="status status-neutral">Checking fundamentals…</span>
             }
-        </section>
-    }
-    <section class="finviz" aria-label="Finviz">
-        <div class="chart-heading">
-            <h2>Finviz</h2>
-            <a href="@FinvizSnapshot.QuoteUrl(_ticker.Symbol)" target="_blank" rel="noopener noreferrer">View @_ticker.Symbol on Finviz ↗</a>
-        </div>
-        @if (_finviz?.Snapshot is { } finviz)
-        {
-            <div class="stats">
-                @foreach (var label in KeyFinvizFields)
-                {
-                    var field = finviz.Field(label);
-                    <div class="stat">
-                        <div class="stat-value @ToneClass(field?.Tone)">@(field?.Value ?? "-")</div>
-                        <div class="muted small">@label</div>
-                    </div>
-                }
-            </div>
-            <details>
-                <summary>All @finviz.Columns.Sum(c => c.Count) readings</summary>
-                <div class="finviz-grid">
-                    @foreach (var column in finviz.Columns)
-                    {
-                        <table class="data finviz-table">
-                            <tbody>
-                                @foreach (var field in column)
-                                {
-                                    <tr><th scope="row">@field.Label</th><td class="num @ToneClass(field.Tone)">@field.Value</td></tr>
-                                }
-                            </tbody>
-                        </table>
-                    }
-                </div>
-            </details>
-            <h3>Latest headlines</h3>
-            @if (finviz.Headlines.Count == 0)
+            <span class="muted"> · </span>
+            <span class="status @Display.StatusClass(analysis.Status.Kind)"><span aria-hidden="true">@Display.StatusGlyph(analysis.Status.Kind)</span> @Display.StatusLabel(analysis.Status)</span>
+            @if (latest is not null)
             {
-                <p class="muted small">Finviz lists no news for this ticker.</p>
+                <span class="muted"> (score @latest.Total.ToString("0"))</span>
             }
-            else
-            {
-                <ul class="headlines">
-                    @foreach (var headline in finviz.Headlines)
-                    {
-                        <li>
-                            <a href="@headline.Url" target="_blank" rel="noopener noreferrer nofollow">@headline.Title</a>
-                            <div class="muted small">@headline.Source · @Display.Checked(headline.At)</div>
-                        </li>
-                    }
-                </ul>
-            }
-            <p class="muted small">From Finviz, fetched @Display.Checked(_finviz.FetchedEastern). Kept for an hour. For information only: this doesn't affect the score or the buy rule.</p>
-        }
-        else if (_finviz is { } failed)
+        </p>
+        @if (_own is { Verdict: OwnVerdict.Review } toReview)
         {
-            <p class="muted small">Couldn't read Finviz: @failed.Problem</p>
+            <p class="small">Review: @string.Join(" · ", toReview.Failures.Select(f => $"{f.Name} {f.Reading}"))</p>
         }
-        else
-        {
-            <p class="muted small">Reading Finviz…</p>
-        }
+        <p class="muted small">
+            <strong>Own it?</strong> asks whether to keep buying at all, from Finviz and SEC filings.
+            <strong>When?</strong> is this month's buy rule. Timing: @Display.VerdictLabel(backtest.Verdict).ToLowerInvariant(), @Display.VerdictSentence(backtest)
+        </p>
     </section>
+
     <p class="muted">
         Using @Display.Date(analysis.HistoryStart) to @Display.Date(analysis.HistoryEnd)
         @if (analysis.LowConfidence)
@@ -169,68 +92,6 @@ else
             <span class="chip">Low confidence: under 5 years of data</span>
         }
     </p>
-
-    @if (analysis.Bars.Count > 0)
-    {
-        <section aria-label="Moving averages">
-            <div class="chart-heading">
-                <h2>Price and moving averages @(_averagePoints.Count > 0 ? ChartPeriod() : "")</h2>
-                @if (latest is not null)
-                {
-                    <label class="range-picker">
-                        <span class="visually-hidden">Chart range</span>
-                        <select @bind="_rangeMonths" @bind:after="BuildScoreChart">
-                            <option value="1">1 month</option>
-                            <option value="3">3 months</option>
-                            <option value="6">6 months</option>
-                            <option value="12">1 year</option>
-                            <option value="60">5 years</option>
-                            <option value="@MaxRange">Max</option>
-                        </select>
-                    </label>
-                }
-            </div>
-            <div class="table-wrap">
-                <table class="data">
-                    <thead>
-                        <tr><th>Average</th><th class="num">Value</th><th class="num">Close compared with it</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var average in _averages)
-                        {
-                            <tr>
-                                <td>@(average.Period is null ? $"YTD (since {Display.Date(YearStart(analysis.Bars))})" : average.Name)</td>
-                                @if (average.Latest is { } value)
-                                {
-                                    <td class="num">@value.ToString("0.00")</td>
-                                    <td class="num">@Display.Percent(MovingAverages.PercentFrom(analysis.Bars[^1].Close, value))</td>
-                                }
-                                else
-                                {
-                                    <td class="num muted" colspan="2">Needs @average.Period trading days</td>
-                                }
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            @if (_averagePoints.Count > 0)
-            {
-                <div class="chart-gap"></div>
-                <LineChart Points="_averagePoints" Lines="_averageLines" Label="@($"{_ticker.Symbol} closing price with its 5, 20, 50, 100 and 200-day and year-to-date moving averages")" Name="Price" />
-            }
-            <p class="muted small">Closes on @Display.Date(analysis.Bars[^1].Date). For information only: these don't affect the score or the buy rule. The range applies to both charts on this page. Hover for the values on any day.</p>
-        </section>
-    }
-
-    <section class="verdict-panel @Display.VerdictClass(backtest.Verdict)" aria-label="Signal or first trading day?">
-        <h2><span aria-hidden="true">@Display.VerdictGlyph(backtest.Verdict)</span> @Display.VerdictLabel(backtest.Verdict)</h2>
-        <p>@Display.VerdictSentence(backtest)</p>
-        @if (backtest.Months.Count > 1)
-        {
-            <p class="muted small">@Display.VerdictDetail(backtest)</p>
-        }
-    </section>
 
     <section>
         <h2>This month</h2>
@@ -295,8 +156,191 @@ else
         }
     </section>
 
-    <section>
-        <h2>Backtest</h2>
+    <details class="fold">
+        <summary>Own it? details</summary>
+        @if (_own is { } ownResult)
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Rule</th><th>Needs</th><th>Reading</th><th>Result</th><th>From</th></tr></thead>
+                    <tbody>
+                        @foreach (var rule in ownResult.Rules)
+                        {
+                            <tr>
+                                <td>@rule.Name</td>
+                                <td>@rule.Needs</td>
+                                <td class="@(rule.Passes is null ? "muted" : "")">@rule.Reading</td>
+                                <td class="@(rule.Passes switch { true => "check-pass", false => "check-fail", _ => "muted" })">
+                                    <span aria-hidden="true">@(rule.Passes switch { true => "✓", false => "✗", _ => "–" })</span>
+                                    @(rule.Passes switch { true => "Pass", false => "Fail", _ => "Not checked" })
+                                </td>
+                                <td class="muted small">@rule.Source</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted small">Any failure means review it. Own it needs at least @OwnCheck.MinChecked rules answered, so ETFs show not checked. This doesn't affect the score or the buy rule.</p>
+        }
+        @if (_lynchVsScore is { } lvs)
+        {
+            <p class="small"><strong>Does the score agree with Lynch?</strong> @LynchVsScoreSentence(lvs)</p>
+        }
+    @if (Sec.IsConfigured)
+    {
+        <div class="lynch">
+            @if (_financials is { } financials && _move is { } priced)
+            {
+                var lynch = LynchScore.For(financials, priced.Price);
+                <h3>Peter Lynch checks: @lynch.Passed of @lynch.Checked pass</h3>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                            <tr><th>Rule</th><th>Needs</th><th>Reading</th><th>Result</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var check in lynch.Checks)
+                            {
+                                <tr>
+                                    <td>@check.Name</td>
+                                    <td>@check.Rule</td>
+                                    <td class="@(check.Passes is null ? "muted" : "")">@check.Reading</td>
+                                    <td class="@(check.Passes switch { true => "check-pass", false => "check-fail", _ => "muted" })">
+                                        <span aria-hidden="true">@(check.Passes switch { true => "✓", false => "✗", _ => "–" })</span>
+                                        @(check.Passes switch { true => "Pass", false => "Fail", _ => "Not checked" })
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="muted small">
+                    Earnings through @Display.Date(lynch.EarningsThrough) and balance sheet on @Display.Date(lynch.BalanceSheetAt), from SEC filings, at a price of @priced.Price.ToString("0.00").
+                    Growth compares the last 12 months' earnings per share with the 12 months before. 
+                </p>
+            }
+            else if (_financialsLoaded)
+            {
+                <p class="muted small">Peter Lynch checks: no company financials found at the SEC. ETFs and most foreign companies don't file them there.</p>
+            }
+            else
+            {
+                <p class="muted small">Looking up the company's financials for the Peter Lynch checks…</p>
+            }
+        </div>
+    }
+    <div class="finviz">
+        <div class="chart-heading">
+            <h3>Finviz</h3>
+            <a href="@FinvizSnapshot.QuoteUrl(_ticker.Symbol)" target="_blank" rel="noopener noreferrer">View @_ticker.Symbol on Finviz ↗</a>
+        </div>
+        @if (_finviz?.Snapshot is { } finviz)
+        {
+            <details>
+                <summary>All @finviz.Columns.Sum(c => c.Count) readings</summary>
+                <div class="finviz-grid">
+                    @foreach (var column in finviz.Columns)
+                    {
+                        <table class="data finviz-table">
+                            <tbody>
+                                @foreach (var field in column)
+                                {
+                                    <tr><th scope="row">@field.Label</th><td class="num @ToneClass(field.Tone)">@field.Value</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </details>
+            <h3>Latest headlines</h3>
+            @if (finviz.Headlines.Count == 0)
+            {
+                <p class="muted small">Finviz lists no news for this ticker.</p>
+            }
+            else
+            {
+                <ul class="headlines">
+                    @foreach (var headline in finviz.Headlines.Take(3))
+                    {
+                        <li>
+                            <a href="@headline.Url" target="_blank" rel="noopener noreferrer nofollow">@headline.Title</a>
+                            <div class="muted small">@headline.Source · @Display.Checked(headline.At)</div>
+                        </li>
+                    }
+                </ul>
+            }
+            <p class="muted small">From Finviz, fetched @Display.Checked(_finviz.FetchedEastern). Kept for an hour.</p>
+        }
+        else if (_finviz is { } failed)
+        {
+            <p class="muted small">Couldn't read Finviz: @failed.Problem</p>
+        }
+        else
+        {
+            <p class="muted small">Reading Finviz…</p>
+        }
+    </div>
+    </details>
+
+    @if (analysis.Bars.Count > 0)
+    {
+        <details class="fold">
+            <summary>Price and moving averages @(_averagePoints.Count > 0 ? ChartPeriod() : "")</summary>
+            <div class="chart-heading">
+                @if (latest is not null)
+                {
+                    <label class="range-picker">
+                        <span class="visually-hidden">Chart range</span>
+                        <select @bind="_rangeMonths" @bind:after="BuildScoreChart">
+                            <option value="1">1 month</option>
+                            <option value="3">3 months</option>
+                            <option value="6">6 months</option>
+                            <option value="12">1 year</option>
+                            <option value="60">5 years</option>
+                            <option value="@MaxRange">Max</option>
+                        </select>
+                    </label>
+                }
+            </div>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr><th>Average</th><th class="num">Value</th><th class="num">Close compared with it</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var average in _averages)
+                        {
+                            <tr>
+                                <td>@(average.Period is null ? $"YTD (since {Display.Date(YearStart(analysis.Bars))})" : average.Name)</td>
+                                @if (average.Latest is { } value)
+                                {
+                                    <td class="num">@value.ToString("0.00")</td>
+                                    <td class="num">@Display.Percent(MovingAverages.PercentFrom(analysis.Bars[^1].Close, value))</td>
+                                }
+                                else
+                                {
+                                    <td class="num muted" colspan="2">Needs @average.Period trading days</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_averagePoints.Count > 0)
+            {
+                <div class="chart-gap"></div>
+                <LineChart Points="_averagePoints" Lines="_averageLines" Label="@($"{_ticker.Symbol} closing price with its 5, 20, 50, 100 and 200-day and year-to-date moving averages")" Name="Price" />
+            }
+            <p class="muted small">Closes on @Display.Date(analysis.Bars[^1].Date). For information only: these don't affect the score or the buy rule. The range applies to both charts on this page. Hover for the values on any day.</p>
+        </details>
+    }
+
+    <details class="fold">
+        <summary>Backtest: @Display.VerdictLabel(backtest.Verdict)</summary>
+        @if (backtest.Months.Count > 1)
+        {
+            <p class="muted small">@Display.VerdictDetail(backtest)</p>
+        }
         @if (backtest.Months.Count == 0)
         {
             <p class="muted">No finished months to test yet.</p>
@@ -343,38 +387,10 @@ else
             </details>
         }
 
-        @if (_trend is { } trend)
-        {
-            <h3>Test: adding this ticker's 200-day average to the score</h3>
-            <p><strong>@Display.TrendSentence(trend)</strong></p>
-            @if (trend.Difference.Count > 0)
-            {
-                <div class="table-wrap">
-                    <table class="data">
-                        <thead>
-                            <tr><th>Score</th><th class="num">Months the signal triggered</th><th class="num">Saving vs first day</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Current</td>
-                                <td class="num">@trend.Current.SignalMonths of @trend.Current.Months.Count</td>
-                                <td class="num">@Display.Percent(trend.Current.Edge.Mean)</td>
-                            </tr>
-                            <tr>
-                                <td>With 200-day average</td>
-                                <td class="num">@trend.WithTrend.SignalMonths of @trend.WithTrend.Months.Count</td>
-                                <td class="num">@Display.Percent(trend.WithTrend.Edge.Mean)</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <p class="muted small">@Display.TrendDetail(trend) Both use the same months, which can be fewer than the backtest above. Being at or above the average earns full points, and six indicators share the 100 points, with the trigger still at @BuyRule.Threshold.ToString("0"). This is only a test: the live score and alerts don't use it.</p>
-            }
-        }
-    </section>
+    </details>
 
-    <section>
-        <h2>Day-of-month pattern</h2>
+    <details class="fold">
+        <summary>Day-of-month pattern</summary>
         @if (analysis.LowConfidence || analysis.Pattern is not { } pattern)
         {
             @if (analysis.Pattern?.BestDay is not null)
@@ -417,7 +433,7 @@ else
                 </div>
             </details>
         }
-    </section>
+    </details>
 }
 
 @code {
@@ -429,7 +445,27 @@ else
     private IReadOnlyList<ChartPoint> _averagePoints = [];
     private IReadOnlyList<ChartLine> _averageLines = [];
     private IReadOnlyList<MovingAverage> _averages = [];
-    private TrendComparisonResult? _trend;
+    private OwnResult? _own;
+    private LynchVsScoreResult? _lynchVsScore;
+
+    private static string OwnLabel(OwnVerdict v) => v switch { OwnVerdict.OwnIt => "Own it", OwnVerdict.Review => "Review it", _ => "Fundamentals not checked" };
+    private static string OwnGlyph(OwnVerdict v) => v switch { OwnVerdict.OwnIt => "✓", OwnVerdict.Review => "!", _ => "–" };
+    private static string OwnClass(OwnVerdict v) => v switch { OwnVerdict.OwnIt => "status-buy", OwnVerdict.Review => "status-warn", _ => "status-neutral" };
+
+    private static string LynchVsScoreSentence(LynchVsScoreResult r) =>
+        r.Correlation is not { } c ? "Not enough history to tell."
+        : $"On the {r.Buys.Count(b => b.Reason == BuyReason.Signal)} months the score triggered, Lynch passed {Display.Percent((r.SignalShare ?? 0) * 100).TrimStart('+')} of its rules on average, against {Display.Percent((r.DeadlineShare ?? 0) * 100).TrimStart('+')} on deadline months. "
+          + $"Across {r.Days} days the two have a correlation of {c:+0.00;-0.00}, "
+          + (Math.Abs(c) < 0.2 ? "so they're essentially unrelated: the score is about timing, Lynch about the company." : c > 0 ? "so they tend to agree." : "so they tend to disagree.")
+          + " Lynch here uses only filings made by each day.";
+
+    // Both sources arrive separately; the check waits for Finviz and, when the SEC is on, the filings.
+    private void UpdateOwn()
+    {
+        if (_finviz is null || (Sec.IsConfigured && !_financialsLoaded) || _ticker is null) return;
+        var lynch = _financials is { } f && _move is { } m ? LynchScore.For(f, m.Price) : null;
+        _own = OwnCheck.For(_finviz.Snapshot, lynch);
+    }
     private PriceMove? _move;
     private EarningsRelease? _earnings;
     private bool _earningsLoaded;
@@ -477,7 +513,6 @@ else
         _ = LoadFinancialsAsync(_ticker.Symbol);
         _ = LoadFinvizAsync(_ticker.Symbol);
         _averages = MovingAverages.For(analysis.Bars);
-        _trend = await Task.Run(() => TrendComparison.Run(analysis.Bars, analysis.Scores));
 
         BuildScoreChart();
 
@@ -572,12 +607,15 @@ else
     private async Task LoadFinancialsAsync(string symbol)
     {
         var financials = await Sec.FinancialsAsync(symbol);
+        var analysis = _ticker?.Analysis;
+        var lynchVsScore = financials is not null && analysis is not null ? await Task.Run(() => LynchVsScore.Run(analysis, financials)) : null;
         try
         {
             await InvokeAsync(() =>
             {
                 if (_ticker?.Symbol != symbol) return;
-                (_financials, _financialsLoaded) = (financials, true);
+                (_financials, _financialsLoaded, _lynchVsScore) = (financials, true, lynchVsScore);
+                UpdateOwn();
                 StateHasChanged();
             });
         }
@@ -596,6 +634,7 @@ else
             {
                 if (_ticker?.Symbol != symbol) return;
                 _finviz = finviz;
+                UpdateOwn();
                 StateHasChanged();
             });
         }

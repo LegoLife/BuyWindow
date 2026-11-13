@@ -12,10 +12,18 @@ public sealed record Financials(
     IReadOnlyList<ReportedValue> DilutedEps,
     IReadOnlyList<ReportedValue> Shares,
     IReadOnlyList<ReportedValue> Equity,
-    IReadOnlyDictionary<string, IReadOnlyList<ReportedValue>> Debt);
+    IReadOnlyDictionary<string, IReadOnlyList<ReportedValue>> Debt)
+{
+    /// <summary>Only what had been filed by <paramref name="date"/>, to see what the filings said then.</summary>
+    public Financials AsOf(DateOnly date)
+    {
+        IReadOnlyList<ReportedValue> Known(IReadOnlyList<ReportedValue> facts) => facts.Where(f => f.Filed <= date).ToList();
+        return new(Known(DilutedEps), Known(Shares), Known(Equity), Debt.ToDictionary(d => d.Key, d => Known(d.Value)));
+    }
+}
 
 /// <summary>One rule. <see cref="Passes"/> is null when the filings don't have what it needs.</summary>
-public sealed record LynchCheck(string Name, string Rule, string Reading, bool? Passes);
+public sealed record LynchCheck(string Name, string Rule, string Reading, bool? Passes, double? Value = null);
 
 public sealed record LynchResult(IReadOnlyList<LynchCheck> Checks, DateOnly? EarningsThrough, DateOnly? BalanceSheetAt)
 {
@@ -49,12 +57,12 @@ public static class LynchScore
         {
             new("Trailing P/E", $"Under {MaxTrailingPe:0}",
                 eps is null ? "No earnings filed" : pe is { } v ? $"{v:0.0}" : "Losing money",
-                eps is null ? null : pe < MaxTrailingPe),
+                eps is null ? null : pe < MaxTrailingPe, pe),
             new("Forward P/E", $"Under {MaxForwardPe:0}", "Needs analysts' estimates, which the SEC doesn't have", null),
             DebtCheck(financials),
             new("EPS growth", $"Over {MinEpsGrowth:0%}",
                 priorEps is null ? "Needs two years of earnings" : growth is { } g ? Percent(g) : "No profit a year earlier",
-                priorEps is null ? null : growth > MinEpsGrowth),
+                priorEps is null ? null : growth > MinEpsGrowth, growth),
             PegCheck(eps is not null && priorEps is not null, pe, growth),
             MarketCapCheck(financials, price),
         };
@@ -124,7 +132,7 @@ public static class LynchScore
         if (debt is null) return new(name, rule, "No debt found in the filings", null);
 
         var ratio = debt.Value / equity.Value;
-        return new(name, rule, $"{ratio:0%}", ratio < MaxDebtToEquity);
+        return new(name, rule, $"{ratio:0%}", ratio < MaxDebtToEquity, ratio);
     }
 
     // PEG is the P/E over the growth rate in percent.
@@ -135,7 +143,7 @@ public static class LynchScore
         if (pe is not { } p || growth is not > 0) return new("PEG", rule, "Needs a profit and growth", false);
 
         var peg = p / (growth.Value * 100);
-        return new("PEG", rule, $"{peg:0.00}", peg < MaxPeg);
+        return new("PEG", rule, $"{peg:0.00}", peg < MaxPeg, peg);
     }
 
     private static LynchCheck MarketCapCheck(Financials financials, double price)
@@ -153,7 +161,7 @@ public static class LynchScore
         if (shares is null) return new(name, rule, "No share count filed", null);
 
         var value = shares.Value * price;
-        return new(name, rule, Money(value), value > MinMarketCap);
+        return new(name, rule, Money(value), value > MinMarketCap, value);
     }
 
     private static ReportedValue? Latest(IReadOnlyList<ReportedValue> facts) =>

@@ -25,6 +25,7 @@ builder.Services.AddHttpClient(SecClient.HttpClientName, client => client.Timeou
 builder.Services.AddSingleton<SecClient>(); // a singleton, so its cache lasts
 builder.Services.AddSingleton<FinvizClient>(); // a singleton, so its cache lasts
 builder.Services.AddSingleton<MarketStore>();
+builder.Services.AddSingleton<OwnService>();
 builder.Services.AddSingleton<EmailSender>();
 builder.Services.AddSingleton<AlertSender>();
 builder.Services.AddHostedService<RefreshWorker>();
@@ -48,5 +49,27 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+if (app.Environment.IsDevelopment())
+{
+    // For checking how the buy score and the Lynch checks line up across the watchlist.
+    app.MapGet("/dev/lynch-vs-score", async (MarketStore store, SecClient sec) =>
+    {
+        var rows = new List<object>();
+        foreach (var ticker in await store.LoadWatchlistAsync())
+        {
+            if (await sec.FinancialsAsync(ticker.Symbol) is not { } financials) { rows.Add(new { ticker.Symbol, NoFilings = true }); continue; }
+            var r = BuyWindow.Core.LynchVsScore.Run(ticker.Analysis, financials);
+            rows.Add(new
+            {
+                ticker.Symbol, r.SignalShare, r.DeadlineShare, r.Correlation, r.Days,
+                SignalMonths = r.Buys.Count(b => b.Reason == BuyWindow.Core.BuyReason.Signal),
+                Months = r.Buys.Count,
+                Signals = r.Buys.Where(b => b.Reason == BuyWindow.Core.BuyReason.Signal).Select(b => $"{b.BuyDate} {b.Passed}/{b.Checked}"),
+            });
+        }
+        return rows;
+    });
+}
 
 app.Run();

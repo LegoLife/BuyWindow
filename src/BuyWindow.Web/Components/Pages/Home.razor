@@ -4,6 +4,7 @@
 @inject MarketStore Store
 @inject EmailSender Email
 @inject AlertSender Alerts
+@inject OwnService Own
 
 <PageTitle>BuyWindow</PageTitle>
 
@@ -84,9 +85,9 @@ else
             <thead>
                 <tr>
                     <th>Ticker</th>
-                    <th>Status</th>
+                    <th>Own it?</th>
+                    <th>This month</th>
                     <th class="num">Score</th>
-                    <th class="num">Trading days left</th>
                     <th>Signal or first day?</th>
                     <th>Best day to buy</th>
                     <th><span class="visually-hidden">Remove</span></th>
@@ -102,11 +103,21 @@ else
                             <div class="muted small">@ticker.Name</div>
                         </td>
                         <td>
+                            @if (_own.TryGetValue(ticker.Symbol, out var own))
+                            {
+                                <span class="status @(own.Verdict switch { OwnVerdict.OwnIt => "status-buy", OwnVerdict.Review => "status-warn", _ => "status-neutral" })">@(own.Verdict switch { OwnVerdict.OwnIt => "✓ Own it", OwnVerdict.Review => "! Review", _ => "– Not checked" })</span>
+                                <div class="muted small">@string.Join(" · ", own.Failures.Select(f => $"{f.Name} {f.Reading}"))</div>
+                            }
+                            else
+                            {
+                                <span class="muted small">Checking…</span>
+                            }
+                        </td>
+                        <td>
                             <span class="status @Display.StatusClass(analysis.Status.Kind)"><span aria-hidden="true">@Display.StatusGlyph(analysis.Status.Kind)</span> @Display.StatusLabel(analysis.Status)</span>
-                            <div class="muted small">@Display.StatusDetail(analysis.Status)</div>
+                            <div class="muted small">@Display.StatusDetail(analysis.Status) · @analysis.Status.TradingDaysLeft trading days left</div>
                         </td>
                         <td class="num" data-label="Score">@(analysis.Scores.Count > 0 ? analysis.Scores[^1].Total.ToString("0") : "-")</td>
-                        <td class="num" data-label="Trading days left">@analysis.Status.TradingDaysLeft</td>
                         <td>
                             <span class="verdict @Display.VerdictClass(analysis.Backtest.Verdict)"><span aria-hidden="true">@Display.VerdictGlyph(analysis.Backtest.Verdict)</span> @Display.VerdictLabel(analysis.Backtest.Verdict)</span>
                             <div class="muted small">
@@ -145,6 +156,8 @@ else
 
 @code {
     private IReadOnlyList<WatchedTicker> _tickers = [];
+    private readonly Dictionary<string, OwnResult> _own = new(StringComparer.OrdinalIgnoreCase);
+    private bool _checkingOwn;
     private IReadOnlyList<TickerMatch>? _matches;
     private DateOnly? _dataThrough;
     private string _query = "";
@@ -164,6 +177,29 @@ else
         _tickers = await Store.LoadWatchlistAsync();
         _dataThrough = _tickers.Max(t => t.Analysis.HistoryEnd);
         _loading = false;
+        if (!_checkingOwn) _ = CheckOwnAsync();
+    }
+
+    // One ticker at a time, after the table shows: Finviz is read one page at a time anyway.
+    private async Task CheckOwnAsync()
+    {
+        _checkingOwn = true;
+        try
+        {
+            foreach (var ticker in _tickers.ToList())
+            {
+                var result = await Own.ForAsync(ticker);
+                await InvokeAsync(() => { _own[ticker.Symbol] = result; StateHasChanged(); });
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // The page was closed before every ticker was checked.
+        }
+        finally
+        {
+            _checkingOwn = false;
+        }
     }
 
     private void OnStoreChanged() => _ = InvokeAsync(async () =>

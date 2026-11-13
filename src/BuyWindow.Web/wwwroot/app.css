@@ -283,3 +283,9 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* The two-question decision at the top of a ticker page, and the sections folded under it. */
+.decision { margin-top: 16px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent-ink); border-radius: 8px; }
+.decision p { margin: 4px 0 0; }
+.decision-line { font-size: 1.15rem; font-weight: 600; }
+details.fold { margin-top: 16px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+details.fold > summary { font-weight: 600; font-size: 1.05rem; }

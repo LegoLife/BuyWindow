@@ -32,6 +32,25 @@ Each email includes the ticker's verdict. Tickers that trigger at the same check
 
 ## How it decides
 
+Each ticker answers two questions, shown in one line at the top of its page and on the watchlist:
+
+1. **Own it?** Should you keep buying this at all? From Finviz and SEC filings.
+2. **When?** The buy score and buy rule below, which pick the day this month.
+
+**Own it?** Five rules. Any failure shows **Review** with the reasons. **Own it** needs every answered rule to pass and at least 3 answered, so ETFs show **Not checked**.
+
+| Rule | Passes when | From |
+|---|---|---|
+| Forward P/E | Above 0 and under 25 | Finviz |
+| PEG | Above 0 and under 2 | Finviz, else SEC |
+| Debt/Equity | Under 0.35 | Finviz, else SEC |
+| EPS growth | Above 0% | SEC trailing 12 months, else Finviz "EPS this Y" |
+| Short float | Under 10% | Finviz |
+
+It doesn't affect the score, the buy rule or alerts. Finviz only has today's numbers, so it can't be backtested.
+
+**Score vs Lynch.** The ticker page's "Own it? details" compares every past day's score with the Lynch checks as the filings stood that day. On Nov 13, 2026 the correlation was between -0.06 and +0.06 for BE, LLY, MU, SNDK and TSLA, so the two are unrelated.
+
 **Score.** Five indicators are each worth up to 20 points, for a 0-100 score. The rules are the same for every ticker, because tuning them per ticker would fit past noise.
 
 | Indicator | Full points | No points |
@@ -56,8 +75,6 @@ Between those points the score scales evenly. A negative MACD histogram rising f
 - **No clear winner:** the range includes zero.
 
 **Moving averages.** The top of the ticker page shows the 5-, 20-, 50-, 100- and 200-day averages and the year-to-date average, as readings and on a chart. The year-to-date average covers closes since the year's first trading day and restarts each January. They're for information only and don't affect the score or the buy rule.
-
-**200-day test.** The ticker page also backtests the current score against a version with the ticker's own 200-day average added. At or above the average earns full points, the six indicators share the 100 points, and the trigger stays at 70. Both versions use the same months, so this test can cover fewer months than the main backtest. The live score and alerts don't use this version.
 
 **Best day to buy.** The watchlist names the day of the month with the lowest average price, measured against each month's average. If a 5-day stretch clearly beats that average, the day comes from that stretch. Otherwise it's the lowest day overall, marked "Could be chance". Tickers with under 5 years of data use the finished months they have and are also marked "Could be chance". It's for information only and doesn't affect the buy rule.
 
@@ -101,4 +118,5 @@ The last 12 months come from the latest 10-Q's year so far, plus the last full y
 | 2026-10-30 | The buy threshold stays at 70. On BE, NBIS, MU and HOOD it triggered in about 13-29% of months, so it passes the "almost never triggers" check. It should not be tuned to improve backtest results. |
 | 2026-10-31 | A signal on a month's last close now buys at the next month's first open. It used to count for neither month, so SNDK's 75 on Oct 30 sent no alert. This was made to stop missing alerts, not to improve backtest results. |
 | 2026-11-02 | The live score stays at five indicators. Adding the ticker's 200-day average showed no clear difference on BE, MU, NBIS, SNDK or TSLA, checked on the home server on Nov 2, 2026. The test's direction and 70 trigger were set before seeing results and should not be tuned to improve them. |
+| 2026-11-13 | Fundamentals stay out of the score, as a separate "Own it?" check. Finviz numbers can't be backtested, and the Lynch checks showed no correlation with the score. The 200-day test was removed from the page. |
 | 2026-11-02 | Rule of 40 stays out of the score. It changes quarterly, so it can't pick a day within a month, and it doesn't apply to ETFs. |

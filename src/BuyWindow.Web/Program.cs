@@ -21,6 +21,9 @@ builder.Services.AddHttpClient<IMarketData, TiingoClient>(client =>
     client.BaseAddress = new Uri(builder.Configuration["Tiingo:BaseUrl"] ?? "https://api.tiingo.com/");
     client.Timeout = TimeSpan.FromSeconds(60);
 });
+builder.Services.AddHttpClient(SecClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(20));
+builder.Services.AddSingleton<SecClient>(); // a singleton, so its cache lasts
+builder.Services.AddSingleton<FinvizClient>(); // a singleton, so its cache lasts
 builder.Services.AddSingleton<MarketStore>();
 builder.Services.AddSingleton<EmailSender>();
 builder.Services.AddSingleton<AlertSender>();

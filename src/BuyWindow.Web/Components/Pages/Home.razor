@@ -213,6 +213,7 @@ else
     {
         _refreshing = true;
         await Store.RefreshDueAsync(force: true);
+        await Store.RefreshQuotesAsync(force: true);
         _refreshing = false;
     }
 

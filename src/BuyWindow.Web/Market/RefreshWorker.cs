@@ -16,6 +16,7 @@ public sealed class RefreshWorker(MarketStore store, AlertSender alerts, ILogger
                 await store.RefreshDueAsync(ct: stoppingToken);
                 if (store.LastError is { } error)
                     logger.LogWarning("Price refresh failed: {Error}", error);
+                await store.RefreshQuotesAsync(ct: stoppingToken);
 
                 await alerts.SendDueAsync(stoppingToken);
                 store.MarkChecked();

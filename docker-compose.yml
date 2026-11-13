@@ -15,6 +15,7 @@ services:
       Smtp__User: ${SMTP_USER:-}
       Smtp__Password: ${SMTP_PASSWORD:-}
       Smtp__AlertRecipient: ${ALERT_EMAIL:-}
+      Sec__ContactEmail: ${SEC_CONTACT_EMAIL:-}
     volumes:
       - buywindow-data:/data
 

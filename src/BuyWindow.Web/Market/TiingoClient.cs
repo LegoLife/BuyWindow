@@ -35,6 +35,19 @@ public sealed class TiingoClient(HttpClient http, IConfiguration config) : IMark
             .ToList();
     }
 
+    public async Task<IReadOnlyList<LiveQuote>> GetQuotesAsync(IReadOnlyCollection<string> symbols, CancellationToken ct = default)
+    {
+        if (symbols.Count == 0) return [];
+
+        var rows = await GetAsync<List<QuoteRow>>(
+            $"iex/?tickers={Uri.EscapeDataString(string.Join(',', symbols))}", ct);
+
+        return rows
+            .Where(r => (r.TngoLast ?? r.Last) is > 0)
+            .Select(r => new LiveQuote(r.Ticker.ToUpperInvariant(), (r.TngoLast ?? r.Last)!.Value, r.PrevClose, r.Timestamp))
+            .ToList();
+    }
+
     private async Task<T> GetAsync<T>(string path, CancellationToken ct)
     {
         if (!IsConfigured)
@@ -75,6 +88,14 @@ public sealed class TiingoClient(HttpClient http, IConfiguration config) : IMark
         [property: JsonPropertyName("name")] string? Name,
         [property: JsonPropertyName("assetType")] string? AssetType,
         [property: JsonPropertyName("isActive")] bool IsActive);
+
+    // Tiingo's last sale price, or its estimate from the quotes when nothing has traded on IEX yet.
+    private sealed record QuoteRow(
+        [property: JsonPropertyName("ticker")] string Ticker,
+        [property: JsonPropertyName("timestamp")] DateTimeOffset Timestamp,
+        [property: JsonPropertyName("last")] double? Last,
+        [property: JsonPropertyName("tngoLast")] double? TngoLast,
+        [property: JsonPropertyName("prevClose")] double? PrevClose);
 
     private sealed record PriceRow(
         [property: JsonPropertyName("date")] DateTime Date,

@@ -10,6 +10,15 @@ public static class MarketCalendar
     private static readonly TimeOnly CorrectionsFinished = new(20, 0);
     private static readonly TimeOnly FirstRefresh = new(18, 0);
     private static readonly TimeOnly CorrectionsRefresh = new(20, 5);
+    private static readonly TimeOnly SessionOpen = new(9, 30);
+    private static readonly TimeOnly QuotesSettled = new(16, 30); // half an hour past the close, to catch the closing price
+
+    /// <summary>Whether live prices can move: a trading day, from the open until shortly after the close.</summary>
+    public static bool QuotesMoving(DateTime easternNow)
+    {
+        var time = TimeOnly.FromDateTime(easternNow);
+        return IsTradingDay(DateOnly.FromDateTime(easternNow)) && time >= SessionOpen && time <= QuotesSettled;
+    }
 
     public static bool IsTradingDay(DateOnly date) =>
         date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && !IsHoliday(date);

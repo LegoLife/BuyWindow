@@ -55,7 +55,7 @@ Between those points the score scales evenly. A negative MACD histogram rising f
 - **First day better:** the whole range shows it paying more.
 - **No clear winner:** the range includes zero.
 
-**Moving averages.** The ticker page shows the 60-, 90- and 200-day averages as readings and on a chart. They're for information only and don't affect the score or the buy rule.
+**Moving averages.** The top of the ticker page shows the 5-, 20-, 50-, 100- and 200-day averages and the year-to-date average, as readings and on a chart. The year-to-date average covers closes since the year's first trading day and restarts each January. They're for information only and don't affect the score or the buy rule.
 
 **200-day test.** The ticker page also backtests the current score against a version with the ticker's own 200-day average added. At or above the average earns full points, the six indicators share the 100 points, and the trigger stays at 70. Both versions use the same months, so this test can cover fewer months than the main backtest. The live score and alerts don't use this version.
 
@@ -67,9 +67,28 @@ Between those points the score scales evenly. A negative MACD histogram rising f
 
 Prices refresh at 6:00 PM Eastern on trading days and again at 8:05 PM, after Tiingo's corrections finish.
 
+**Latest price.** The top of the ticker page shows the latest price, green if it's above the previous close and red if it's below. While the market is open, and for half an hour after the close, the 15-minute check fetches the watchlist's prices from Tiingo's IEX feed in one request. At other times it shows the last daily close. Live prices only count trades on IEX, are kept in memory, and are fetched again after a restart. They don't affect the score or alerts.
+
+**Earnings release.** Under the price, the ticker page links the company's latest earnings release on SEC EDGAR: the newest 8-K reporting results (item 2.02). It also links the earnings call webcast, using the address the press release gives nearest its mention of the webcast or call. That's often the company's investor site rather than the call itself, where the webcast and its archive are listed. The SEC asks apps to name a contact email, so this sends `SEC_CONTACT_EMAIL` to the SEC, or `ALERT_EMAIL` or `SMTP_USER` when that's blank. With none set, the link is hidden. ETFs and most foreign companies don't file these releases, so their pages say none was found.
+
+**Peter Lynch checks.** The top of the ticker page checks the stock against six stock-picking rules attributed to Peter Lynch, using the company's 10-K and 10-Q filings on SEC EDGAR and the latest price:
+
+| Rule | Passes when |
+|---|---|
+| Trailing P/E | Price over the last 12 months' diluted earnings per share is under 25 |
+| Forward P/E | Never checked: it needs analysts' estimates, which the SEC doesn't have |
+| Debt/Equity | Total debt, including the part due this year and short-term borrowings, is under 35% of shareholders' equity |
+| EPS growth | The last 12 months' earnings per share are over 15% above the 12 months before |
+| PEG | Trailing P/E over EPS growth in percent is under 2 |
+| Market value | Price times the latest quarter's diluted share count is over $5 billion |
+
+The last 12 months come from the latest 10-Q's year so far, plus the last full year, minus the same months of that year. A loss fails the P/E, growth and PEG rules, and equity below zero fails debt. A rule the filings can't answer, such as debt filed under a tag the app doesn't read, is shown as not checked and left out of the count. It uses the same SEC contact email as the earnings release, and the filings are fetched again after 6 hours. ETFs and most foreign companies don't file these numbers, so their pages say none were found. It's for information only and doesn't affect the score or the buy rule.
+
+**Finviz.** The ticker page shows the stock's P/E, forward P/E and short interest from its [Finviz](https://finviz.com/) quote page, the page's full table of readings, its latest 10 headlines, and a link to the page. The [Obscura](https://github.com/h4ckf0r0day/obscura) browser fetches the page, without running its scripts. The Docker images include Obscura; to run without Docker, put `obscura` on your PATH or set `Finviz:ObscuraPath`. Each ticker is fetched at most once an hour, one at a time. Finviz's terms don't allow automated access, so keep this personal and light. It's for information only and doesn't affect the score or the buy rule.
+
 ## Limits
 
-- Tiingo's free plan allows 50 requests an hour, 1,000 a day and 500 symbols a month. Each ticker and SPY uses one request per refresh.
+- Tiingo's free plan allows 50 requests an hour, 1,000 a day and 500 symbols a month. Each ticker and SPY uses one request per refresh. Live prices add one request per 15 minutes during market hours, about 28 a day.
 - Tiingo's free license is for personal use only, so don't share the app or its data. The container only listens on this computer.
 - Tiingo's search has no country field, so results can include non-US listings. Check the match before adding it.
 - The trading calendar covers regular US market holidays, not one-off closures, in the current month.

@@ -18,7 +18,37 @@ public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provid
 
     private readonly SemaphoreSlim _gate = new(1, 1);
 
+    // Kept in memory only: after a restart the first check fetches them again.
+    private volatile IReadOnlyDictionary<string, LiveQuote> _quotes = new Dictionary<string, LiveQuote>();
+    private bool _quotesFetched;
+
     public event Action? Changed;
+
+    public LiveQuote? QuoteFor(string symbol) => _quotes.GetValueOrDefault(symbol);
+
+    /// <summary>
+    /// Fetches the watchlist's latest prices in one request while the market is open, and once after
+    /// a restart. Failures only leave the old prices, because the daily closes still work without them.
+    /// </summary>
+    public async Task RefreshQuotesAsync(bool force = false, CancellationToken ct = default)
+    {
+        if (!force && _quotesFetched && !MarketCalendar.QuotesMoving(EasternNow)) return;
+
+        try
+        {
+            await using var db = await dbs.CreateDbContextAsync(ct);
+            var symbols = await db.Symbols.Where(s => s.IsWatched).Select(s => s.Symbol).ToListAsync(ct);
+            var quotes = await provider.GetQuotesAsync(symbols, ct);
+            _quotes = quotes.ToDictionary(q => q.Symbol);
+            _quotesFetched = true;
+        }
+        catch (MarketDataException ex)
+        {
+            logger.LogWarning("Live price fetch failed: {Error}", ex.Message);
+            return;
+        }
+        Changed?.Invoke();
+    }
 
     public string? LastError { get; private set; }
 
@@ -27,7 +57,9 @@ public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provid
 
     public bool IsConfigured => provider.IsConfigured;
 
-    public DateTime EasternNow => TimeZoneInfo.ConvertTimeFromUtc(clock.GetUtcNow().UtcDateTime, Eastern);
+    public DateTime EasternNow => ToEastern(clock.GetUtcNow());
+
+    public static DateTime ToEastern(DateTimeOffset at) => TimeZoneInfo.ConvertTimeFromUtc(at.UtcDateTime, Eastern);
 
     public void MarkChecked()
     {

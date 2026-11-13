@@ -1,6 +1,6 @@
 @* One or more series on one axis, with an optional confidence band and reference line. *@
 
-@if (_endLabels.Count > 0)
+@if (SecondName is not null || Lines.Count > 0)
 {
     <div class="chart-legend">
         <span><i class="swatch" aria-hidden="true"></i>@Name</span>
@@ -83,7 +83,7 @@
 
 @code {
     private const int Width = 720, Height = 260, Left = 48, Top = 14, Bottom = 30;
-    private const int LabelGap = 14;
+    private const int LabelGap = 14, MaxEndLabels = 4;
     private const int CrowdedPoints = 300; // past about a year of days, full-size marks hide the lines
 
     [Parameter, EditorRequired] public required IReadOnlyList<ChartPoint> Points { get; set; }
@@ -128,7 +128,8 @@
         for (var tick = _min; tick <= _max + step / 1000; tick += step)
             _ticks.Add(Math.Round(tick, 6));
 
-        _right = SecondName is null && Lines.Count == 0 ? 16 : 56; // room for the labels at the end of each line
+        var series = 1 + (SecondName is null ? 0 : 1) + Lines.Count;
+        _right = series is > 1 and <= MaxEndLabels ? 56 : 16; // room for the labels at the end of each line
         _slot = (Width - Left - _right) / (double)Math.Max(Points.Count, 1);
         _labelEvery = Math.Max(1, (int)Math.Ceiling(Points.Count / 7.0));
         _line = "M" + string.Join("L", Points.Select((p, i) => $"{N(X(i))} {N(Y(p.Value))}"));
@@ -168,9 +169,11 @@
     }
 
     // One label per line at its last value, spread just enough that none sit on top of each other.
+    // Past four lines the spread pulls labels away from their lines, so the legend and tooltip name them instead.
     private List<(string Text, double Y)> BuildEndLabels()
     {
         if (Points.Count == 0 || (_secondLine is null && _extraLines.Count == 0)) return [];
+        if (1 + (SecondName is null ? 0 : 1) + Lines.Count > MaxEndLabels) return [];
 
         var labels = new List<(string Text, double Y)> { (Name ?? "", Y(Points[^1].Value) + 4) };
         if (_secondLine is not null)

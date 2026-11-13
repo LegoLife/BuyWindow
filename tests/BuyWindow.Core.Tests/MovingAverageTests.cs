@@ -9,11 +9,30 @@ public class MovingAverageTests
 
         var averages = MovingAverages.For(bars);
 
-        Assert.Equal([60, 90, 200], averages.Select(a => a.Period));
-        Assert.Null(averages[0].Values[58]);
-        Assert.Equal(129.5, averages[0].Values[59]!.Value, 6); // closes 100 to 159
-        Assert.Equal(154.5, averages[1].Latest!.Value, 6);     // closes 110 to 199
-        Assert.Null(averages[2].Latest);
+        Assert.Equal(["5-day", "20-day", "50-day", "100-day", "200-day", "YTD"], averages.Select(a => a.Name));
+        Assert.Null(averages[0].Values[3]);
+        Assert.Equal(102, averages[0].Values[4]!.Value, 6);    // closes 100 to 104
+        Assert.Equal(174.5, averages[2].Latest!.Value, 6);     // closes 150 to 199
+        Assert.Null(averages[3].Values[98]);
+        Assert.Equal(149.5, averages[3].Latest!.Value, 6);     // closes 100 to 199
+        Assert.Null(averages[4].Latest);
+    }
+
+    [Fact]
+    public void Year_to_date_average_restarts_each_january()
+    {
+        PriceBar[] bars =
+        [
+            Fixtures.Bar(new DateOnly(2025, 12, 30), 100),
+            Fixtures.Bar(new DateOnly(2025, 12, 31), 200),
+            Fixtures.Bar(new DateOnly(2026, 1, 2), 10),
+            Fixtures.Bar(new DateOnly(2026, 1, 5), 20),
+            Fixtures.Bar(new DateOnly(2026, 1, 6), 60),
+        ];
+
+        var ytd = MovingAverages.YearToDate(bars);
+
+        Assert.Equal([100, 150, 10, 15, 30], ytd.Select(v => v!.Value));
     }
 
     [Theory]

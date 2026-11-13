@@ -15,6 +15,9 @@ public static class Display
     public static string Checked(DateTime? eastern) =>
         eastern?.ToString("MMM d, yyyy 'at' h:mm tt 'ET'", CultureInfo.InvariantCulture) ?? "not yet";
 
+    public static string Host(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : url;
+
     public static string Percent(double value) =>
         double.IsFinite(value) ? $"{value:+0.0;-0.0;0.0}%" : "n/a";
 

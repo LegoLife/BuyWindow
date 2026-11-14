@@ -75,14 +75,39 @@ else
                 <span class="muted"> (score @latest.Total.ToString("0"))</span>
             }
         </p>
-        @if (_own is { Verdict: OwnVerdict.Review } toReview)
-        {
-            <p class="small">Review: @string.Join(" · ", toReview.Failures.Select(f => $"{f.Name} {f.Reading}"))</p>
-        }
-        <p class="muted small">
-            <strong>Own it?</strong> asks whether to keep buying at all, from Finviz and SEC filings.
-            <strong>When?</strong> is this month's buy rule. Timing: @Display.VerdictLabel(backtest.Verdict).ToLowerInvariant(), @Display.VerdictSentence(backtest)
-        </p>
+        @{ var when = Why.When(analysis, DateOnly.FromDateTime(Store.EasternNow)); }
+        <div class="why">
+            <div>
+                <h3>When to buy</h3>
+                <p><strong>@when.Headline</strong></p>
+                <ul>
+                    @foreach (var reason in when.Reasons)
+                    {
+                        <li>@reason</li>
+                    }
+                </ul>
+            </div>
+            <div>
+                <h3>@(_own?.Verdict == OwnVerdict.Review ? "Why review it" : "Why own it")</h3>
+                @if (_own is null)
+                {
+                    <p class="muted small">Checking Finviz and the SEC filings…</p>
+                }
+                else if (_own.Verdict == OwnVerdict.NotChecked)
+                {
+                    <p class="muted small">Not enough company numbers to judge, which is normal for ETFs.</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var reason in Why.Own(_own))
+                        {
+                            <li>@reason</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
     </section>
 
     <p class="muted">

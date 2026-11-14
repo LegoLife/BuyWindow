@@ -289,3 +289,7 @@ h1:focus {
 .decision-line { font-size: 1.15rem; font-weight: 600; }
 details.fold { margin-top: 16px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 details.fold > summary { font-weight: 600; font-size: 1.05rem; }
+.why { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 24px; margin-top: 8px; }
+.why h3 { margin: 8px 0 2px; font-size: 1rem; }
+.why ul { margin: 4px 0 0; padding-left: 18px; }
+.why li { margin: 2px 0; }

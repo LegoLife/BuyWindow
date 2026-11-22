@@ -1,4 +1,4 @@
-@* One or more series on one axis, with an optional confidence band and reference line. *@
+@* One or more series on one axis, with an optional confidence band and reference lines. *@
 
 @if (SecondName is not null || Lines.Count > 0)
 {
@@ -28,7 +28,7 @@
         <path class="band" d="@_band" />
     }
 
-    @if (Reference is { } reference)
+    @foreach (var reference in _references)
     {
         <g>
             <line class="reference" x1="@Left" x2="@(Width - _right)" y1="@N(Y(reference))" y2="@N(Y(reference))" />
@@ -90,6 +90,7 @@
     [Parameter, EditorRequired] public required string Label { get; set; }
     [Parameter] public string Suffix { get; set; } = "";
     [Parameter] public double? Reference { get; set; }
+    [Parameter] public IReadOnlyList<double> References { get; set; } = [];
     [Parameter] public double? Min { get; set; }
     [Parameter] public double? Max { get; set; }
     [Parameter] public string? Name { get; set; }
@@ -97,6 +98,7 @@
     [Parameter] public IReadOnlyList<ChartLine> Lines { get; set; } = [];
 
     private List<double> _ticks = [];
+    private List<double> _references = [];
     private double _min, _max, _slot;
     private int _labelEvery = 1, _right = 16;
     private string _line = "";
@@ -108,12 +110,13 @@
 
     protected override void OnParametersSet()
     {
+        _references = (Reference.HasValue ? [Reference.Value] : new List<double>()).Concat(References).ToList();
         _markRadius = Points.Count > CrowdedPoints ? 2 : 5;
         _markClass = Points.Count > CrowdedPoints ? "mark-small" : "";
 
         var values = Points.Select(p => p.Value)
             .Concat(Points.Where(p => p.Low.HasValue).SelectMany(p => new[] { p.Low!.Value, p.High!.Value }))
-            .Concat(Reference.HasValue ? [Reference.Value] : [])
+            .Concat(_references)
             .Concat(Lines.SelectMany(l => l.Values).OfType<double>())
             .ToList();
 

@@ -153,6 +153,10 @@ else
             <LineChart Points="_scorePoints" Label="@($"{_ticker.Symbol} daily buy score and closing price")" Min="0" Max="100" Reference="BuyRule.Threshold" Name="Score" SecondName="Price" />
             <p class="muted small">Price is drawn on the same 0 to 100 scale: 0 is its lowest close in this period (@_priceLow.ToString("0.00")) and 100 is its highest (@_priceHigh.ToString("0.00")). Hover for the actual price. The flat line at @BuyRule.Threshold.ToString("0") is the buy trigger and applies only to the score. Dots mark the days the rule bought, at that day's open, which can differ from the close shown here. The range is picked at the top of the page.</p>
 
+            <h3>RSI (14-day) @ChartPeriod()</h3>
+            <LineChart Points="_rsiPoints" Label="@($"{_ticker.Symbol} 14-day RSI with lines at 20 and 80")" Min="0" Max="100" References="RsiLines" Name="RSI" />
+            <p class="muted small">The flat lines mark 20 and 80, the usual oversold and overbought levels. They're for reading only: the score gives RSI full points at 30 or below and none at 60 or above.</p>
+
             @if (_reviews.Count > 0)
             {
                 <h3>Purchases in this period</h3>
@@ -466,6 +470,8 @@ else
 
     private WatchedTicker? _ticker;
     private IReadOnlyList<ChartPoint> _scorePoints = [];
+    private IReadOnlyList<ChartPoint> _rsiPoints = [];
+    private static readonly double[] RsiLines = [20, 80];
     private IReadOnlyList<ChartPoint> _patternPoints = [];
     private IReadOnlyList<ChartPoint> _averagePoints = [];
     private IReadOnlyList<ChartLine> _averageLines = [];
@@ -583,6 +589,10 @@ else
                 Tip(s),
                 Marked: bought.ContainsKey(s.Date),
                 Second: priceRange > 0 ? (bars[s.Date].Close - _priceLow) / priceRange * 100 : 50))
+            .ToList();
+
+        _rsiPoints = recent
+            .Select(s => new ChartPoint(s.Date.ToString(labelFormat), s.Rsi, $"{Display.Date(s.Date)}: RSI {s.Rsi:0.0}"))
             .ToList();
 
         BuildAverageChart(recent, labelFormat);

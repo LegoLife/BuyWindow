@@ -76,6 +76,8 @@ Between those points the score scales evenly. A negative MACD histogram rising f
 
 **Moving averages.** The top of the ticker page shows the 5-, 20-, 50-, 100- and 200-day averages and the year-to-date average, as readings and on a chart. The year-to-date average covers closes since the year's first trading day and restarts each January. They're for information only and don't affect the score or the buy rule.
 
+**RSI chart.** Under the score chart, the ticker page draws the 14-day RSI over the same range, with lines at 20 and 80. It's for information only: the lines don't change the score, which uses 30 and 60.
+
 **Best day to buy.** The watchlist names the day of the month with the lowest average price, measured against each month's average. If a 5-day stretch clearly beats that average, the day comes from that stretch. Otherwise it's the lowest day overall, marked "Could be chance". Tickers with under 5 years of data use the finished months they have and are also marked "Could be chance". It's for information only and doesn't affect the buy rule.
 
 **History.** Up to the last 10 years, using only data after the most recent trading gap of more than 30 days. Under 5 years is labeled low confidence and the full day-of-month pattern is hidden, though the best day is still shown.

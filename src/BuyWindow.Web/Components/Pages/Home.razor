@@ -117,9 +117,13 @@ else
             {
                 var key = group.Key;
                 var open = Filtering || !_collapsed.Contains(key);
-                <tbody class="watch-group">
+                var canDragGroup = key.Length > 0 && !Filtering;
+                <tbody class="watch-group @DropClass(key) @(_draggingGroup == key ? "dragging" : "")"
+                       @ondragenter="() => _dropTarget = key" @ondragover:preventDefault @ondrop="() => DropAsync(key)">
                     <tr class="group-row">
-                        <th colspan="7" scope="rowgroup">
+                        <th colspan="7" scope="rowgroup" draggable="@(canDragGroup ? "true" : "false")" data-drag-group="@(canDragGroup ? key : null)"
+                            title="@(canDragGroup ? "Drag to reorder groups" : null)"
+                            @ondragstart="() => { if (canDragGroup) _draggingGroup = key; }" @ondragend="EndDrag">
                             <button class="group-toggle" type="button" aria-expanded="@(open ? "true" : "false")" disabled="@Filtering" @onclick="() => Toggle(key)">
                                 <span class="group-caret" aria-hidden="true">@(open ? "▾" : "▸")</span>
                                 @(key.Length == 0 ? "Ungrouped" : key)
@@ -132,7 +136,9 @@ else
                 @foreach (var ticker in group)
                 {
                     var analysis = ticker.Analysis;
-                    <tr>
+                    <tr draggable="true" data-drag-ticker="@ticker.Symbol" class="@(_dragging == ticker.Symbol ? "dragging" : "")"
+                        title="Drag onto a group to move it"
+                        @ondragstart="() => _dragging = ticker.Symbol" @ondragend="EndDrag">
                         <td>
                             <a class="ticker-link" href="ticker/@ticker.Symbol">@ticker.Symbol</a>
                             <div class="muted small">@ticker.Name</div>
@@ -206,6 +212,53 @@ else
     private string? _testResult;
     private bool _loading = true, _searching, _refreshing, _testing;
     private string _filter = "";
+    private string? _dragging, _draggingGroup, _dropTarget;
+    private IReadOnlyList<string> _groupOrder = [];
+
+    private void EndDrag() => (_dragging, _draggingGroup, _dropTarget) = (null, null, null);
+
+    private string DropClass(string key)
+    {
+        if (_dropTarget != key) return "";
+        if (_dragging is not null) return "drop-target";
+        return _draggingGroup is not null && _draggingGroup != key ? "drop-before" : "";
+    }
+
+    // Saved order first, then any group not placed yet by name. Ungrouped is always last.
+    private int GroupRank(string key)
+    {
+        if (key.Length == 0) return int.MaxValue;
+        var i = _groupOrder.ToList().FindIndex(n => string.Equals(n, key, StringComparison.OrdinalIgnoreCase));
+        return i < 0 ? int.MaxValue - 1 : i;
+    }
+
+    // A dragged group lands just above the group it's dropped on, or at the end when dropped on Ungrouped.
+    private async Task MoveGroupAsync(string moving, string target)
+    {
+        if (string.Equals(moving, target, StringComparison.OrdinalIgnoreCase)) return;
+        var names = VisibleGroups().Select(g => g.Key).Where(k => k.Length > 0).ToList();
+        names.RemoveAll(n => string.Equals(n, moving, StringComparison.OrdinalIgnoreCase));
+        var at = names.FindIndex(n => string.Equals(n, target, StringComparison.OrdinalIgnoreCase));
+        names.Insert(at < 0 ? names.Count : at, moving);
+        await Store.SaveGroupOrderAsync(names);
+    }
+
+    // Dropping on the group the ticker is already in does nothing.
+    private async Task DropAsync(string group)
+    {
+        var symbol = _dragging;
+        var movingGroup = _draggingGroup;
+        EndDrag();
+        if (movingGroup is not null)
+        {
+            await MoveGroupAsync(movingGroup, group);
+            return;
+        }
+        if (symbol is null) return;
+        var current = _tickers.FirstOrDefault(t => t.Symbol == symbol)?.Group ?? "";
+        if (string.Equals(current, group, StringComparison.OrdinalIgnoreCase)) return;
+        await Store.SetGroupAsync(symbol, group);
+    }
     private readonly HashSet<string> _collapsed = new(StringComparer.OrdinalIgnoreCase);
 
     private bool Filtering => !string.IsNullOrWhiteSpace(_filter);
@@ -223,7 +276,7 @@ else
                 || t.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
                 || (t.Group?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false))
             .GroupBy(t => t.Group ?? "", StringComparer.OrdinalIgnoreCase)
-            .OrderBy(g => g.Key.Length == 0)
+            .OrderBy(g => GroupRank(g.Key))
             .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -250,6 +303,7 @@ else
     private async Task LoadAsync()
     {
         _tickers = await Store.LoadWatchlistAsync();
+        _groupOrder = await Store.LoadGroupOrderAsync();
         _dataThrough = _tickers.Max(t => t.Analysis.HistoryEnd);
         _loading = false;
         if (!_checkingOwn) _ = CheckOwnAsync();

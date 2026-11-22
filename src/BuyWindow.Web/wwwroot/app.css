@@ -302,3 +302,12 @@ details.fold > summary { font-weight: 600; font-size: 1.05rem; }
 .why h3 { margin: 8px 0 2px; font-size: 1rem; }
 .why ul { margin: 4px 0 0; padding-left: 18px; }
 .why li { margin: 2px 0; }
+
+/* Dragging a ticker onto a group moves it there. */
+tr[draggable="true"] { cursor: grab; }
+tr.dragging { opacity: 0.45; }
+tbody.drop-target .group-row th { background: color-mix(in srgb, var(--accent) 14%, var(--page)); box-shadow: inset 0 0 0 2px var(--accent); }
+tbody.drop-target tr:not(.group-row) td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.group-row th[draggable="true"] { cursor: grab; }
+tbody.dragging { opacity: 0.45; }
+tbody.drop-before .group-row th { box-shadow: inset 0 3px 0 var(--accent); }

@@ -32,8 +32,16 @@ public class SentAlert
     public DateTime SentUtc { get; set; }
 }
 
+/// <summary>Where a watchlist group sits on the home page, lowest first. Groups without a row sort after, by name.</summary>
+public class GroupOrder
+{
+    public required string Name { get; set; }
+    public int Position { get; set; }
+}
+
 public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
 {
+    public DbSet<GroupOrder> GroupOrders => Set<GroupOrder>();
     public DbSet<TrackedSymbol> Symbols => Set<TrackedSymbol>();
     public DbSet<StoredBar> Bars => Set<StoredBar>();
     public DbSet<SentAlert> SentAlerts => Set<SentAlert>();
@@ -43,5 +51,6 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         model.Entity<TrackedSymbol>().HasKey(s => s.Symbol);
         model.Entity<StoredBar>().HasKey(b => new { b.Symbol, b.Date });
         model.Entity<SentAlert>().HasKey(a => new { a.Symbol, a.Key });
+        model.Entity<GroupOrder>().HasKey(g => g.Name);
     }
 }

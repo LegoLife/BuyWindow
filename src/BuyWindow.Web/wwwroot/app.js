@@ -20,3 +20,11 @@
         tip.style.top = `${event.clientY - tip.offsetHeight - 12}px`;
     });
 })();
+
+// Firefox only starts a drag when the drag carries data, and Blazor's ondragstart doesn't add any.
+document.addEventListener("dragstart", (event) => {
+    if (event.target.closest?.("[data-drag-ticker], [data-drag-group]")) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", event.target.dataset.dragTicker ?? event.target.dataset.dragGroup ?? "");
+    }
+});

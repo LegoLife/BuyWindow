@@ -119,6 +119,26 @@ public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provid
         Changed?.Invoke();
     }
 
+    /// <summary>The saved group order, first group first.</summary>
+    public async Task<IReadOnlyList<string>> LoadGroupOrderAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbs.CreateDbContextAsync(ct);
+        return await db.GroupOrders.OrderBy(g => g.Position).Select(g => g.Name).ToListAsync(ct);
+    }
+
+    /// <summary>Replaces the saved group order with these names, in this order.</summary>
+    public async Task SaveGroupOrderAsync(IReadOnlyList<string> names, CancellationToken ct = default)
+    {
+        await using var db = await dbs.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.GroupOrders.ExecuteDeleteAsync(ct);
+        db.GroupOrders.AddRange(names.Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select((name, i) => new GroupOrder { Name = name, Position = i }));
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        Changed?.Invoke();
+    }
+
     /// <summary>
     /// Fetches symbols not refreshed since the latest scheduled point. Whole histories are replaced
     /// because a new split or dividend changes every earlier adjusted price.

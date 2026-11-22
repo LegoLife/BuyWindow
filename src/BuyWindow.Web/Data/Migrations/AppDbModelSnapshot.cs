@@ -15,7 +15,7 @@ namespace BuyWindow.Web.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
             modelBuilder.Entity("BuyWindow.Web.Data.SentAlert", b =>
                 {
@@ -64,6 +64,9 @@ namespace BuyWindow.Web.Data.Migrations
             modelBuilder.Entity("BuyWindow.Web.Data.TrackedSymbol", b =>
                 {
                     b.Property<string>("Symbol")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Group")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsWatched")

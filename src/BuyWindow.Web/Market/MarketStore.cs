@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuyWindow.Web.Market;
 
-public sealed record WatchedTicker(string Symbol, string Name, TickerAnalysis Analysis);
+public sealed record WatchedTicker(string Symbol, string Name, TickerAnalysis Analysis, string? Group = null);
 
 /// <summary>Keeps stored prices current and turns them into analyses for the pages.</summary>
 public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provider, TimeProvider clock, ILogger<MarketStore> logger)
@@ -109,6 +109,16 @@ public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provid
         Changed?.Invoke();
     }
 
+    /// <summary>Puts a watched symbol in a group. A blank name takes it out of every group.</summary>
+    public async Task SetGroupAsync(string symbol, string? group, CancellationToken ct = default)
+    {
+        var name = string.IsNullOrWhiteSpace(group) ? null : group.Trim();
+        await using var db = await dbs.CreateDbContextAsync(ct);
+        await db.Symbols.Where(s => s.Symbol == symbol)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.Group, name), ct);
+        Changed?.Invoke();
+    }
+
     /// <summary>
     /// Fetches symbols not refreshed since the latest scheduled point. Whole histories are replaced
     /// because a new split or dividend changes every earlier adjusted price.
@@ -156,7 +166,7 @@ public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provid
         foreach (var symbol in symbols)
         {
             var bars = await LoadBarsAsync(db, symbol.Symbol, ct);
-            result.Add(new WatchedTicker(symbol.Symbol, symbol.Name, await Task.Run(() => Analyzer.Analyze(bars, market, now), ct)));
+            result.Add(new WatchedTicker(symbol.Symbol, symbol.Name, await Task.Run(() => Analyzer.Analyze(bars, market, now), ct), symbol.Group));
         }
         return result;
     }
@@ -170,7 +180,7 @@ public sealed class MarketStore(IDbContextFactory<AppDb> dbs, IMarketData provid
         var bars = await LoadBarsAsync(db, symbol, ct);
         var market = await LoadBarsAsync(db, MarketSymbol, ct);
         var now = EasternNow;
-        return new WatchedTicker(symbol, row.Name, await Task.Run(() => Analyzer.Analyze(bars, market, now), ct));
+        return new WatchedTicker(symbol, row.Name, await Task.Run(() => Analyzer.Analyze(bars, market, now), ct), row.Group);
     }
 
     private DateOnly FetchStart() => DateOnly.FromDateTime(EasternNow).AddYears(-FetchYears);

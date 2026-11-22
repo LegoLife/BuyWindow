@@ -80,6 +80,26 @@ else if (_tickers.Count == 0)
 }
 else
 {
+    <div class="watch-tools">
+        <label for="watch-filter" class="visually-hidden">Find in watchlist</label>
+        <input id="watch-filter" type="search" @bind="_filter" @bind:event="oninput" placeholder="Find in watchlist: symbol, name or group" autocomplete="off" />
+        <button class="link-button" type="button" @onclick="() => SetAllCollapsed(true)">Collapse all</button>
+        <button class="link-button" type="button" @onclick="() => SetAllCollapsed(false)">Expand all</button>
+    </div>
+    <datalist id="group-names">
+        @foreach (var name in GroupNames)
+        {
+            <option value="@name"></option>
+        }
+    </datalist>
+
+    var groups = VisibleGroups();
+    if (groups.Count == 0)
+    {
+        <p class="empty">Nothing on your watchlist matches “@_filter.Trim()”.</p>
+    }
+    else
+    {
     <div class="table-wrap">
         <table class="data watchlist">
             <thead>
@@ -90,11 +110,26 @@ else
                     <th class="num">Score</th>
                     <th>Signal or first day?</th>
                     <th>Best day to buy</th>
-                    <th><span class="visually-hidden">Remove</span></th>
+                    <th><span class="visually-hidden">Group and remove</span></th>
                 </tr>
             </thead>
-            <tbody>
-                @foreach (var ticker in _tickers)
+            @foreach (var group in groups)
+            {
+                var key = group.Key;
+                var open = Filtering || !_collapsed.Contains(key);
+                <tbody class="watch-group">
+                    <tr class="group-row">
+                        <th colspan="7" scope="rowgroup">
+                            <button class="group-toggle" type="button" aria-expanded="@(open ? "true" : "false")" disabled="@Filtering" @onclick="() => Toggle(key)">
+                                <span class="group-caret" aria-hidden="true">@(open ? "▾" : "▸")</span>
+                                @(key.Length == 0 ? "Ungrouped" : key)
+                                <span class="muted small">@group.Count()</span>
+                            </button>
+                        </th>
+                    </tr>
+                @if (open)
+                {
+                @foreach (var ticker in group)
                 {
                     var analysis = ticker.Analysis;
                     <tr>
@@ -128,14 +163,19 @@ else
                             <span class="best-day @(analysis.LowConfidence || analysis.Pattern?.BestWindow is null ? "status-neutral" : "")">@Display.BestDayLabel(analysis)</span>
                             <div class="muted small">@Display.BestDayDetail(analysis)</div>
                         </td>
-                        <td class="num">
+                        <td class="num row-actions">
+                            <input class="group-input" list="group-names" value="@ticker.Group" placeholder="Group" aria-label="Group for @ticker.Symbol"
+                                   @onchange="e => SetGroupAsync(ticker.Symbol, e.Value as string)" />
                             <button class="link-button" @onclick="() => RemoveAsync(ticker.Symbol)" aria-label="Remove @ticker.Symbol">Remove</button>
                         </td>
                     </tr>
                 }
-            </tbody>
+                }
+                </tbody>
+            }
         </table>
     </div>
+    }
 }
 
 <p class="email-status muted small">
@@ -165,6 +205,41 @@ else
     private string? _adding;
     private string? _testResult;
     private bool _loading = true, _searching, _refreshing, _testing;
+    private string _filter = "";
+    private readonly HashSet<string> _collapsed = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool Filtering => !string.IsNullOrWhiteSpace(_filter);
+
+    private IEnumerable<string> GroupNames =>
+        _tickers.Select(t => t.Group).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase);
+
+    // Named groups alphabetically, ungrouped last. A filter matches symbol, name or group and opens every group with a match.
+    private List<IGrouping<string, WatchedTicker>> VisibleGroups()
+    {
+        var term = _filter.Trim();
+        return _tickers
+            .Where(t => term.Length == 0
+                || t.Symbol.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || t.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || (t.Group?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false))
+            .GroupBy(t => t.Group ?? "", StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key.Length == 0)
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void Toggle(string group)
+    {
+        if (!_collapsed.Remove(group)) _collapsed.Add(group);
+    }
+
+    private void SetAllCollapsed(bool collapsed)
+    {
+        _collapsed.Clear();
+        if (collapsed) _collapsed.UnionWith(_tickers.Select(t => t.Group ?? ""));
+    }
+
+    private Task SetGroupAsync(string symbol, string? group) => Store.SetGroupAsync(symbol, group);
 
     protected override async Task OnInitializedAsync()
     {

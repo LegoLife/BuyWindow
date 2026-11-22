@@ -134,6 +134,14 @@ section { margin-top: 32px; }
     font: inherit;
 }
 
+.watch-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.watch-tools input { flex: 1 1 240px; min-width: 0; padding: 7px 10px; color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; font: inherit; }
+.group-row th { padding: 0; background: var(--page); border-bottom: 1px solid var(--grid); }
+.group-toggle { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 10px 12px; color: var(--ink); background: none; border: 0; font: inherit; font-weight: 650; text-align: left; cursor: pointer; }
+.group-toggle:disabled { cursor: default; }
+.group-caret { width: 1em; color: var(--muted); }
+.row-actions { white-space: nowrap; }
+.group-input { width: 110px; padding: 4px 6px; color: var(--ink); background: var(--surface); border: 1px solid var(--grid); border-radius: 4px; font: inherit; font-size: 13px; }
 .matches { margin: 0 0 20px; }
 .matches ul { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .matches ul:empty { display: none; }
@@ -235,7 +243,8 @@ details .table-wrap { margin-top: 8px; }
 
     /* The watchlist's columns don't fit a phone, and the verdict must stay visible, so rows become cards. */
     table.watchlist thead { display: none; }
-    table.watchlist, table.watchlist tbody, table.watchlist tr, table.watchlist td { display: block; }
+    table.watchlist, table.watchlist tbody, table.watchlist tr, table.watchlist td, table.watchlist th { display: block; }
+    table.watchlist tr.group-row { padding: 0; }
     table.watchlist tr { position: relative; padding: 6px 0; }
     table.watchlist tbody tr + tr { border-top: 1px solid var(--grid); }
     table.watchlist tbody tr + tr td { border-top: 0; }

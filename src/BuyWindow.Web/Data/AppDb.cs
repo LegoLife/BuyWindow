@@ -8,6 +8,8 @@ public class TrackedSymbol
     public required string Symbol { get; set; }
     public required string Name { get; set; }
     public bool IsWatched { get; set; }
+    /// <summary>The user's watchlist group, like "Energy". Empty means ungrouped.</summary>
+    public string? Group { get; set; }
     public DateTime? LastFetchedUtc { get; set; }
 }
 

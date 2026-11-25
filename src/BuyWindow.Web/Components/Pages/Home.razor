@@ -1,10 +1,11 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @implements IDisposable
 @inject MarketStore Store
 @inject EmailSender Email
 @inject AlertSender Alerts
 @inject OwnService Own
+@inject KalshiClient Kalshi
 
 <PageTitle>BuyWindow</PageTitle>
 
@@ -34,6 +35,30 @@
 @if (Alerts.LastError is { } alertError)
 {
     <p class="notice notice-warn" role="alert"><strong>! Email problem.</strong> @alertError</p>
+}
+
+@if (_fed is { } fed)
+{
+    @if (fed.Meetings.Count > 0)
+    {
+        var next = fed.Meetings[0];
+        <p class="@(next.Hike >= FedOdds.HikeWarning ? "notice" : "macro")" aria-label="Fed rate odds">
+            @if (next.Hike >= FedOdds.HikeWarning)
+            {
+                <strong class="status-warn">! Rate hike risk.</strong>
+            }
+            <strong>Fed, @Display.Date(next.Date):</strong> @Odds(next)
+            @foreach (var later in fed.Meetings.Skip(1).Take(2))
+            {
+                <span class="muted"> · @later.Date.ToString("MMM d"): @Odds(later)</span>
+            }
+            <span class="muted small"> · Kalshi odds, for context only. Not part of the score.</span>
+        </p>
+    }
+    else
+    {
+        <p class="macro muted small">Fed odds unavailable: @fed.Problem</p>
+    }
 }
 
 <form class="search" @onsubmit="SearchAsync">
@@ -108,6 +133,7 @@ else
                     <th>Own it?</th>
                     <th>This month</th>
                     <th class="num">Score</th>
+                    <th class="num" title="Below the highest close in up to 10 years of history">Off high</th>
                     <th>Signal or first day?</th>
                     <th>Best day to buy</th>
                     <th><span class="visually-hidden">Group and remove</span></th>
@@ -121,7 +147,7 @@ else
                 <tbody class="watch-group @DropClass(key) @(_draggingGroup == key ? "dragging" : "")"
                        @ondragenter="() => _dropTarget = key" @ondragover:preventDefault @ondrop="() => DropAsync(key)">
                     <tr class="group-row">
-                        <th colspan="7" scope="rowgroup" draggable="@(canDragGroup ? "true" : "false")" data-drag-group="@(canDragGroup ? key : null)"
+                        <th colspan="8" scope="rowgroup" draggable="@(canDragGroup ? "true" : "false")" data-drag-group="@(canDragGroup ? key : null)"
                             title="@(canDragGroup ? "Drag to reorder groups" : null)"
                             @ondragstart="() => { if (canDragGroup) _draggingGroup = key; }" @ondragend="EndDrag">
                             <button class="group-toggle" type="button" aria-expanded="@(open ? "true" : "false")" disabled="@Filtering" @onclick="() => Toggle(key)">
@@ -159,6 +185,17 @@ else
                             <div class="muted small">@Display.StatusDetail(analysis.Status) · @analysis.Status.TradingDaysLeft trading days left</div>
                         </td>
                         <td class="num" data-label="Score">@(analysis.Scores.Count > 0 ? analysis.Scores[^1].Total.ToString("0") : "-")</td>
+                        <td class="num" data-label="Off high">
+                            @if (OffHigh.From(analysis.Bars, Store.QuoteFor(ticker.Symbol)?.Price) is { } off)
+                            {
+                                <span>@(off.Below < 0.005 ? "At high" : $"−{off.Below * 100:0}%")</span>
+                                <div class="muted small" title="@HighSpan(off)">@off.High.ToString("$#,0.00") · @off.HighDate.ToString("MMM yyyy")</div>
+                            }
+                            else
+                            {
+                                <span>-</span>
+                            }
+                        </td>
                         <td>
                             <span class="verdict @Display.VerdictClass(analysis.Backtest.Verdict)"><span aria-hidden="true">@Display.VerdictGlyph(analysis.Backtest.Verdict)</span> @Display.VerdictLabel(analysis.Backtest.Verdict)</span>
                             <div class="muted small">
@@ -297,7 +334,29 @@ else
     protected override async Task OnInitializedAsync()
     {
         Store.Changed += OnStoreChanged;
+        _ = LoadFedAsync();
         await LoadAsync();
+    }
+
+    private FedOutlook? _fed;
+
+    private static string HighSpan(OffHigh off) =>
+        $"Highest close since {off.HistoryStart:MMM yyyy} (prices adjusted for splits and dividends)";
+
+    private static string Odds(FedMeeting m) =>
+        $"{m.Hike * 100:0}% hike / {m.Hold * 100:0}% hold / {m.Cut * 100:0}% cut";
+
+    private async Task LoadFedAsync()
+    {
+        try
+        {
+            var fed = await Kalshi.OutlookAsync();
+            await InvokeAsync(() => { _fed = fed; StateHasChanged(); });
+        }
+        catch (ObjectDisposedException)
+        {
+            // The page was closed first.
+        }
     }
 
     private async Task LoadAsync()

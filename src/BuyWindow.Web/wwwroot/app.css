@@ -141,6 +141,8 @@ section { margin-top: 32px; }
 .group-toggle:disabled { cursor: default; }
 .group-caret { width: 1em; color: var(--muted); }
 .row-actions { white-space: nowrap; }
+/* Remove sits under the group box so the row fits the page width. */
+.row-actions .link-button { display: block; margin: 2px 0 0 auto; }
 .group-input { width: 110px; padding: 4px 6px; color: var(--ink); background: var(--surface); border: 1px solid var(--grid); border-radius: 4px; font: inherit; font-size: 13px; }
 .matches { margin: 0 0 20px; }
 .matches ul { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }

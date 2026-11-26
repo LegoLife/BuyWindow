@@ -6,6 +6,8 @@
 @inject AlertSender Alerts
 @inject OwnService Own
 @inject KalshiClient Kalshi
+@inject KalshiMacroClient KalshiMacro
+@inject ConsensusClient Consensus
 
 <PageTitle>BuyWindow</PageTitle>
 
@@ -59,6 +61,48 @@
     {
         <p class="macro muted small">Fed odds unavailable: @fed.Problem</p>
     }
+}
+
+@if (_macro is { Count: > 0 } macro)
+{
+    <p class="macro" aria-label="Market odds">
+        <strong>Bettors expect:</strong>
+        @foreach (var (line, i) in macro.Select((l, i) => (l, i)))
+        {
+            <span title="@line.Why">@(i > 0 ? " · " : "")@line.Label: <strong>@line.Value</strong></span>
+        }
+        <span class="muted small"> · Kalshi odds, for context only. Not part of the score.</span>
+    </p>
+}
+@if (_macro?.FirstOrDefault(l => l.IsCpi) is { Ladder: { } ladder } cpi)
+{
+    var surprise = _cpiConsensus is { } consensus ? MacroOdds.Surprise(ladder, consensus, cpi.Step) : null;
+    <p class="@(surprise?.Lean == "hot" ? "notice" : "macro")" aria-label="CPI surprise odds">
+        <strong>@cpi.Label vs. consensus</strong>
+        @if (_cpiConsensus is { } shown)
+        {
+            <span class="small"> (consensus @shown.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)% YoY)</span>
+        }
+        @if (surprise is not null)
+        {
+            <span> · @Pct(surprise.Hotter) hotter / @Pct(surprise.InLine) in line / @Pct(surprise.Cooler) cooler. </span>
+            @switch (surprise.Lean)
+            {
+                case "hot": <strong class="status-warn">! Leans hot: a hotter print usually pushes stocks down.</strong> break;
+                case "cool": <strong>Leans cool: a cooler print usually lifts stocks.</strong> break;
+                default: <span>Balanced: no clear lean either way.</span> break;
+            }
+            <span class="muted small"> Odds of a surprise, not a forecast of the market.</span>
+        }
+        else if (_cpiConsensus is not null)
+        {
+            <span class="muted"> · Kalshi has no bet at that number.</span>
+        }
+        else
+        {
+            <span class="muted small"> · The economists' consensus is published the week of the release. The lean shows up here then.</span>
+        }
+    </p>
 }
 
 <form class="search" @onsubmit="SearchAsync">
@@ -335,10 +379,29 @@ else
     {
         Store.Changed += OnStoreChanged;
         _ = LoadFedAsync();
+        _ = LoadMacroAsync();
         await LoadAsync();
     }
 
     private FedOutlook? _fed;
+    private IReadOnlyList<MacroLine>? _macro;
+    private double? _cpiConsensus;
+
+    private static string Pct(double p) => $"{p * 100:0}%";
+
+    private async Task LoadMacroAsync()
+    {
+        try
+        {
+            var lines = await KalshiMacro.LinesAsync();
+            var consensus = lines.FirstOrDefault(l => l.IsCpi)?.Closes is { } release ? await Consensus.CpiYoYAsync(release) : null;
+            await InvokeAsync(() => { _macro = lines; _cpiConsensus = consensus; StateHasChanged(); });
+        }
+        catch (ObjectDisposedException)
+        {
+            // The page was closed first.
+        }
+    }
 
     private static string HighSpan(OffHigh off) =>
         $"Highest close since {off.HistoryStart:MMM yyyy} (prices adjusted for splits and dividends)";

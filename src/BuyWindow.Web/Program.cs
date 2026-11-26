@@ -21,6 +21,7 @@ builder.Services.AddHttpClient<IMarketData, TiingoClient>(client =>
     client.BaseAddress = new Uri(builder.Configuration["Tiingo:BaseUrl"] ?? "https://api.tiingo.com/");
     client.Timeout = TimeSpan.FromSeconds(60);
 });
+builder.Services.AddHttpClient(ConsensusClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient(SecClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddHttpClient(KalshiClient.HttpClientName, client =>
 {
@@ -28,6 +29,8 @@ builder.Services.AddHttpClient(KalshiClient.HttpClientName, client =>
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddSingleton<KalshiClient>(); // a singleton, so its cache lasts
+builder.Services.AddSingleton<KalshiMacroClient>(); // a singleton, so its cache lasts
+builder.Services.AddSingleton<ConsensusClient>(); // a singleton, so its cache lasts
 builder.Services.AddSingleton<SecClient>(); // a singleton, so its cache lasts
 builder.Services.AddSingleton<FinvizClient>(); // a singleton, so its cache lasts
 builder.Services.AddSingleton<MarketStore>();

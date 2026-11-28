@@ -40,7 +40,7 @@ public sealed class AlertSender(
         try
         {
             var subject = fresh.Count == 1
-                ? $"BuyWindow: {fresh[0].Ticker.Symbol} needs a look"
+                ? $"BuyWindow: {fresh[0].Ticker.Symbol} needs a look ({ReasonTag(fresh[0].Alert!, fresh[0].Ticker.Analysis)})"
                 : $"BuyWindow: {fresh.Count} tickers need a look";
             await email.SendAsync(subject, Compose(fresh), ct);
             LastError = null;
@@ -63,7 +63,7 @@ public sealed class AlertSender(
     {
         try
         {
-            await email.SendAsync("BuyWindow: test email", $"Email alerts are working.\n\n{Link()}\nFidelity login: {FidelityLogin}");
+            await email.SendAsync("BuyWindow: test email", $"Email alerts are working.\n\n{await SampleAsync()}{Link()}\nFidelity login: {FidelityLogin}");
             LastError = null;
             return $"Test email sent to {email.Recipient}.";
         }
@@ -74,7 +74,20 @@ public sealed class AlertSender(
         }
     }
 
-    private string Compose(List<(WatchedTicker Ticker, TickerAlert? Alert)> items)
+    /// <summary>A buy alert as it would be written for one watchlist ticker, preferring one that's actually due. Nothing is recorded as sent.</summary>
+    private async Task<string> SampleAsync()
+    {
+        var watchlist = await store.LoadWatchlistAsync();
+        var ticker = watchlist.FirstOrDefault(t => t.Analysis.Status.Kind == StatusKind.BuyNextOpen) ?? watchlist.FirstOrDefault();
+        if (ticker is null) return "";
+        var due = ticker.Analysis.Status.Kind == StatusKind.BuyNextOpen;
+        var header = due
+            ? $"--- Sample buy alert (this is what {ticker.Symbol}'s alert looks like) ---"
+            : $"--- Sample buy alert ({ticker.Symbol} isn't actually due; this only shows the format) ---";
+        return $"{header}\n\n{Compose([(ticker, new TickerAlert(AlertKind.Buy, "sample"))], withLink: false)}---\n\n";
+    }
+
+    private string Compose(List<(WatchedTicker Ticker, TickerAlert? Alert)> items, bool withLink = true)
     {
         var text = new StringBuilder();
         foreach (var (ticker, alert) in items)
@@ -84,13 +97,39 @@ public sealed class AlertSender(
             text.AppendLine(alert!.Kind == AlertKind.Buy
                 ? $"{Display.StatusLabel(analysis.Status)}. {Display.StatusDetail(analysis.Status)}."
                 : "A month-end deadline buy is due, but the price data is out of date. Check the app before buying.");
+            if (alert.Kind == AlertKind.Buy) text.AppendLine(Why(analysis));
             text.AppendLine($"Signal or first day? {Display.VerdictLabel(analysis.Backtest.Verdict)}, over {analysis.Backtest.Months.Count} months{(analysis.LowConfidence ? " (low confidence)" : "")}.");
             text.AppendLine();
         }
-        text.AppendLine(Link());
-        text.AppendLine($"Fidelity login: {FidelityLogin}");
+        if (withLink)
+        {
+            text.AppendLine(Link());
+            text.AppendLine($"Fidelity login: {FidelityLogin}");
+        }
         return text.ToString();
     }
+
+    private static string Why(TickerAnalysis analysis)
+    {
+        var status = analysis.Status;
+        if (status.Reason == BuyReason.Signal)
+        {
+            var signal = analysis.Scores.FirstOrDefault(s => s.Date == status.SignalDate);
+            return $"Why: score signal. The score hit {signal?.Total ?? BuyRule.Threshold:0} on {status.SignalDate:M/d}, at or above the {BuyRule.Threshold:0} threshold.";
+        }
+        var latest = analysis.Scores.LastOrDefault();
+        var best = analysis.Scores.Where(s => status.BuyDate is { } d && s.Date.Year == d.Year && s.Date.Month == d.Month && s.Date < d)
+            .MaxBy(s => s.Total);
+        var facts = new List<string>();
+        if (best is not null) facts.Add($"best {best.Total:0} on {best.Date:M/d}");
+        if (latest is not null) facts.Add($"latest {latest.Total:0}");
+        var detail = facts.Count > 0 ? $" ({string.Join(", ", facts)})" : "";
+        return $"Why: month-end deadline, not the score. The score never reached {BuyRule.Threshold:0} this month{detail}, so the rule buys on the last trading day anyway.";
+    }
+
+    private static string ReasonTag(TickerAlert alert, TickerAnalysis analysis) =>
+        alert.Kind != AlertKind.Buy ? "deadline, data stale"
+        : analysis.Status.Reason == BuyReason.Signal ? "score signal" : "month-end deadline";
 
     private string Link() => config["App:Url"] is { Length: > 0 } url ? $"Open BuyWindow: {url}" : "Open BuyWindow to see the details.";
 }
